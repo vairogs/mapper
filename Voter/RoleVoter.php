@@ -16,16 +16,19 @@ use function in_array;
 
 class RoleVoter extends Voter
 {
-    public function __construct(protected readonly Mapper $mapper)
-    {
+    public function __construct(
+        protected readonly Mapper $mapper,
+    ) {
     }
 
     /**
      * @throws ReflectionException
      */
     #[Override]
-    protected function supports(string $attribute, mixed $subject): bool
-    {
+    protected function supports(
+        string $attribute,
+        mixed $subject,
+    ): bool {
         $reflection = $this->mapper->loadReflection($subject);
 
         return [] !== $reflection->getAttributes(ApiResource::class) && [] !== $reflection->getAttributes(IsGranted::class);
@@ -35,8 +38,11 @@ class RoleVoter extends Voter
      * @throws ReflectionException
      */
     #[Override]
-    protected function voteOnAttribute(string $attribute, mixed $subject, TokenInterface $token): bool
-    {
+    protected function voteOnAttribute(
+        string $attribute,
+        mixed $subject,
+        TokenInterface $token,
+    ): bool {
         $reflection = $this->mapper->loadReflection($subject);
         $allowedRoles = [];
         foreach ($reflection->getAttributes(IsGranted::class) as $attribute) {

@@ -7,7 +7,9 @@ use Attribute;
 #[Attribute(Attribute::TARGET_CLASS)]
 final readonly class GrantedOperation
 {
-    public function __construct(public string $role, array $operations = [])
-    {
+    public function __construct(
+        public string $role,
+        public array $operations = [],
+    ) {
     }
 }

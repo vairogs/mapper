@@ -7,7 +7,8 @@ use Attribute;
 #[Attribute(Attribute::TARGET_CLASS)]
 final readonly class Mapped
 {
-    public function __construct(public string $mapsTo)
-    {
+    public function __construct(
+        public string $mapsTo,
+    ) {
     }
 }

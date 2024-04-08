@@ -3,7 +3,9 @@
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Vairogs\Component\Mapper\Voter\RoleVoter;
 
-return static function (ContainerConfigurator $container): void {
+return static function (
+    ContainerConfigurator $container,
+): void {
     $services = $container->services();
 
     $services->defaults()

@@ -22,15 +22,19 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
 
     private const string VAIROGS_MAPPER_ENTITY_NORMALIZER = 'VAIROGS_MAPPER_ENTITY_NORMALIZER';
 
-    public function __construct(private readonly Mapper $mapper)
-    {
+    public function __construct(
+        private readonly Mapper $mapper,
+    ) {
     }
 
     /**
      * @throws ReflectionException
      */
-    public function supportsNormalization(mixed $data, ?string $format = null, array $context = []): bool
-    {
+    public function supportsNormalization(
+        mixed $data,
+        ?string $format = null,
+        array $context = [],
+    ): bool {
         if (isset($context[self::VAIROGS_MAPPER_ENTITY_NORMALIZER]) || !is_object($data)) {
             return false;
         }
@@ -43,8 +47,11 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
      * @throws ExceptionInterface
      * @throws ResourceClassNotFoundException
      */
-    public function normalize(mixed $object, ?string $format = null, array $context = []): float|array|ArrayObject|bool|int|string|null
-    {
+    public function normalize(
+        mixed $object,
+        ?string $format = null,
+        array $context = [],
+    ): float|array|ArrayObject|bool|int|string|null {
         $resource = $this->mapper->toResource($object, $context);
         $context[self::VAIROGS_MAPPER_ENTITY_NORMALIZER] = true;
 

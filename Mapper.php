@@ -130,8 +130,8 @@ class Mapper implements ProviderInterface, ProcessorInterface
     }
 
     /**
-     * @throws ReflectionException
      * @throws ResourceClassNotFoundException
+     * @throws ReflectionException
      */
     public function toResource(?object $object, array $context = []): ?object
     {
@@ -150,7 +150,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         $context[self::VAIROGS_MAPPER_LEVEL] ??= +1;
         $this->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object));
 
-        $operation = $context['operation'] ?? $context['root_operation'];
+        $operation = $context['operation'] ?? $context['root_operation'] ?? null;
         if (is_object($operation)) {
             $operation = $operation::class;
         }
