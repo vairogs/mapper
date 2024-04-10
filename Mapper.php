@@ -10,6 +10,7 @@ use ApiPlatform\Doctrine\Orm\Util\QueryNameGeneratorInterface;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
+use ApiPlatform\Metadata\Get;
 use ApiPlatform\Metadata\GetCollection;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\Metadata\Patch;
@@ -77,6 +78,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
 {
     public const string VAIROGS_MAPPER_PARENTS = 'VAIROGS_MAPPER_PARENTS';
     public const string VAIROGS_MAPPER_LEVEL = 'VAIROGS_MAPPER_LEVEL';
+    public const string VAIROGS_MAPPER_REF = 'VAIROGS_MAPPER_REF';
 
     private array $reflections = [];
     private array $map = [];
@@ -106,7 +108,8 @@ class Mapper implements ProviderInterface, ProcessorInterface
     {
         return match (true) {
             $operation instanceof GetCollection => $this->getCollection($operation, $context),
-            default => $this->getItem($operation, $uriVariables['id'], $context),
+            $operation instanceof Get => $this->getItem($operation, $uriVariables['id'], $context),
+            default => throw new BadRequestHttpException(sprintf('Invalid operation: "%s"', $operation::class)),
         };
     }
 
@@ -121,7 +124,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
             $operation instanceof Patch => $this->patch($data, $operation, $context),
             $operation instanceof Post => $this->post($data, $context),
             $operation instanceof Put => $this->put($data, $operation, $context),
-            default => throw new BadRequestHttpException(sprintf('Invalid operation: %s', $operation::class)),
+            default => throw new BadRequestHttpException(sprintf('Invalid operation: "%s"', $operation::class)),
         };
 
         $this->flush($entity, null !== $entity);
@@ -133,14 +136,14 @@ class Mapper implements ProviderInterface, ProcessorInterface
      * @throws ResourceClassNotFoundException
      * @throws ReflectionException
      */
-    public function toResource(?object $object, array $context = []): ?object
+    public function toResource(?object $object, array &$context = []): ?object
     {
         if (null === $object) {
             return null;
         }
 
-        if (!$this->isMappedType($object, MappingType::ENTITY)) {
-            if (!$this->isEntity($object)) {
+        if (!$this->isMappedType($object, MappingType::ENTITY, $context)) {
+            if (!$this->isEntity($object, $context)) {
                 throw new InvalidArgumentException(sprintf('%s is not an entity', $object::class));
             }
 
@@ -148,7 +151,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         }
 
         $context[self::VAIROGS_MAPPER_LEVEL] ??= +1;
-        $this->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object));
+        $this->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $context));
 
         $operation = $context['operation'] ?? $context['root_operation'] ?? null;
         if (is_object($operation)) {
@@ -157,7 +160,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
         $output = new $targetResourceClass();
 
-        $targetResourceReflection = $this->loadReflection($output);
+        $targetResourceReflection = $this->loadReflection($output, $context);
 
         if ([] === ($this->allowedFields[$targetResourceClass] ?? [])) {
             $this->allowedFields[$targetResourceClass] = [];
@@ -183,7 +186,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
             }
         }
 
-        $reflection = $this->loadReflection($object);
+        $reflection = $this->loadReflection($object, $context);
         foreach ($reflection->getProperties() as $property) {
             $propertyName = $property->getName();
 
@@ -199,12 +202,12 @@ class Mapper implements ProviderInterface, ProcessorInterface
                 continue;
             }
 
-            if ((class_exists($propertyType) && $this->isEntity($propertyType)) || Collection::class === $propertyType) {
+            if ((class_exists($propertyType) && $this->isEntity($propertyType, $context)) || Collection::class === $propertyType) {
                 if (Collection::class === $propertyType) {
-                    $this->setResourceProperty($output, $propertyName, []);
-                    $targetClass = $this->mapFromAttribute($propertyValue->getTypeClass()->getName());
+                    $this->setResourceProperty($output, $propertyName, [], context: $context);
+                    $targetClass = $this->mapFromAttribute($propertyValue->getTypeClass()->getName(), $context);
                 } else {
-                    $targetClass = $this->mapFromAttribute($propertyType);
+                    $targetClass = $this->mapFromAttribute($propertyType, $context);
                 }
 
                 if (null === $targetClass) {
@@ -232,16 +235,16 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
                 if (Collection::class === $propertyType) {
                     foreach ($propertyValue->getValues() as $value) {
-                        $this->setResourceProperty($output, $propertyName, $this->toResource($value, $contextCleared), true);
+                        $this->setResourceProperty($output, $propertyName, $this->toResource($value, $contextCleared), true, $contextCleared);
                     }
                     continue;
                 }
 
-                $this->setResourceProperty($output, $propertyName, $this->toResource($propertyValue, $contextCleared));
+                $this->setResourceProperty($output, $propertyName, $this->toResource($propertyValue, $contextCleared), context: $contextCleared);
                 continue;
             }
 
-            $this->setResourceProperty($output, $propertyName, $propertyValue);
+            $this->setResourceProperty($output, $propertyName, $propertyValue, context: $context);
         }
 
         return $output;
@@ -250,34 +253,34 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    public function isEntity(object|string $object): bool
+    public function isEntity(object|string $object, array &$context = []): bool
     {
-        return [] !== $this->loadReflection($object)->getAttributes(ORM\Entity::class);
+        return [] !== $this->loadReflection($object, $context)->getAttributes(ORM\Entity::class);
     }
 
     /**
      * @throws ReflectionException
      */
-    public function isResource(object|string $object): bool
+    public function isResource(object|string $object, array &$context = []): bool
     {
-        return [] !== $this->loadReflection($object)->getAttributes(ApiResource::class);
+        return [] !== $this->loadReflection($object, $context)->getAttributes(ApiResource::class);
     }
 
     /**
      * @throws ReflectionException
      */
-    public function isMapped(object|string $object): bool
+    public function isMapped(object|string $object, array &$context = []): bool
     {
-        return [] !== $this->loadReflection($object)->getAttributes(Mapped::class);
+        return [] !== $this->loadReflection($object, $context)->getAttributes(Mapped::class);
     }
 
     /**
      * @throws ReflectionException
      */
-    public function toEntity(object $object, array $context, ?object $existingEntity = null): object
+    public function toEntity(object $object, array &$context = [], ?object $existingEntity = null): object
     {
         $reflection = $this->loadReflection($object);
-        $targetEntityClass = $this->mapFromAttribute($reflection->getName());
+        $targetEntityClass = $this->mapFromAttribute($reflection->getName(), $context);
 
         $properties = $reflection->getProperties();
         $output = $existingEntity ?? new $targetEntityClass();
@@ -308,18 +311,18 @@ class Mapper implements ProviderInterface, ProcessorInterface
             }
 
             $values = $this->accessor->getValue($output, $propertyName);
-            if (null !== $existingEntity && $this->compareValues($values, $propertyValue)) {
+            if (null !== $existingEntity && $this->compareValues($values, $propertyValue, $context)) {
                 continue;
             }
 
-            if (Type::BUILTIN_TYPE_ARRAY === $propertyType && $this->isRelationProperty($object, $propertyName)) {
-                $this->resetValue($output, $propertyName);
+            if (Type::BUILTIN_TYPE_ARRAY === $propertyType && $this->isRelationProperty($object, $propertyName, $context)) {
+                $this->resetValue($output, $propertyName, $context);
 
                 if (null === $propertyValue || 0 === count($propertyValue)) {
                     continue;
                 }
 
-                $targetClass = $this->mapFromAttribute(get_class($propertyValue[0]));
+                $targetClass = $this->mapFromAttribute(get_class($propertyValue[0]), $context);
                 $collection = new ArrayCollection();
                 foreach ($propertyValue as $value) {
                     if (isset($value->id)) {
@@ -338,8 +341,8 @@ class Mapper implements ProviderInterface, ProcessorInterface
                 continue;
             }
 
-            if ($this->isMappedType($propertyType, MappingType::RESOURCE)) {
-                $targetClass = $this->mapFromAttribute($propertyType);
+            if ($this->isMappedType($propertyType, MappingType::RESOURCE, $context)) {
+                $targetClass = $this->mapFromAttribute($propertyType, $context);
                 if (isset($propertyValue->id)) {
                     if (null === ($entity = $this->find($targetClass, $propertyValue->id))) {
                         throw new MappingException("$targetClass entity with id $propertyValue->id not found!");
@@ -366,18 +369,18 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    public function isMappedType(string|object $objectOrClass, MappingType $type): bool
+    public function isMappedType(string|object $objectOrClass, MappingType $type, array &$context = []): bool
     {
         try {
-            $reflection = $this->loadReflection($objectOrClass);
+            $reflection = $this->loadReflection($objectOrClass, $context);
         } catch (ReflectionException) {
             return false;
         }
 
         do {
-            if ($this->isMapped($reflection->getName()) && match ($type) {
-                MappingType::RESOURCE => $this->isResource($reflection->getName()),
-                MappingType::ENTITY => $this->isEntity($reflection->getName()),
+            if ($this->isMapped($reflection->getName(), $context) && match ($type) {
+                MappingType::RESOURCE => $this->isResource($reflection->getName(), $context),
+                MappingType::ENTITY => $this->isEntity($reflection->getName(), $context),
             }) {
                 return true;
             }
@@ -386,7 +389,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         return false;
     }
 
-    public function mapFromAttribute(object|string $objectOrClass): ?string
+    public function mapFromAttribute(object|string $objectOrClass, array &$context = []): ?string
     {
         $class = $objectOrClass;
 
@@ -399,7 +402,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         }
 
         try {
-            $reflection = $this->loadReflection($objectOrClass);
+            $reflection = $this->loadReflection($objectOrClass, $context);
 
             if ([] !== $attributes = $reflection->getAttributes(Mapped::class)) {
                 if (1 === count($attributes)) {
@@ -418,7 +421,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    public function loadReflection(object|string $objectOrClass): ReflectionClass
+    public function loadReflection(object|string $objectOrClass, array &$context = []): ReflectionClass
     {
         $class = $objectOrClass;
 
@@ -426,7 +429,15 @@ class Mapper implements ProviderInterface, ProcessorInterface
             $class = $objectOrClass::class;
         }
 
+        if (array_key_exists($class, $context[self::VAIROGS_MAPPER_REF] ??= [])) {
+            $this->addElementIfNotExists($this->reflections, $context[self::VAIROGS_MAPPER_REF][$class], $class);
+
+            return $context[self::VAIROGS_MAPPER_REF][$class];
+        }
+
         if (array_key_exists($class, $this->reflections)) {
+            $this->addElementIfNotExists($context[self::VAIROGS_MAPPER_REF], $this->reflections[$class], $class);
+
             return $this->reflections[$class];
         }
 
@@ -441,7 +452,10 @@ class Mapper implements ProviderInterface, ProcessorInterface
             $reflection = $reflection->getParentClass();
         }
 
-        return $this->reflections[$class] = $reflection;
+        $this->addElementIfNotExists($context[self::VAIROGS_MAPPER_REF], $reflection, $class);
+        $this->addElementIfNotExists($this->reflections, $reflection, $class);
+
+        return $context[self::VAIROGS_MAPPER_REF][$class];
     }
 
     /** @noinspection PhpRedundantCatchClauseInspection */
@@ -476,7 +490,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
      * @throws ReflectionException
      * @throws ResourceClassNotFoundException
      */
-    protected function getItem(Operation $operation, mixed $id, array $context): object
+    protected function getItem(Operation $operation, mixed $id, array &$context = []): object
     {
         $entity = $this->find($entityClass = $this->getEntityClass($operation), $id);
 
@@ -492,9 +506,9 @@ class Mapper implements ProviderInterface, ProcessorInterface
         return $this->applyFilterExtensionsToCollection($queryBuilder, new QueryNameGenerator(), $operation, $context);
     }
 
-    protected function getEntityClass(Operation $operation): string
+    protected function getEntityClass(Operation $operation, array &$context = []): string
     {
-        $class = $this->mapFromAttribute($operation->getClass());
+        $class = $this->mapFromAttribute($operation->getClass(), $context);
 
         if (null === $class) {
             throw new MappingException(sprintf('Resource class %s does not have a %s attribute', $operation->getClass(), Mapped::class));
@@ -539,7 +553,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    protected function patch(mixed $resource, Operation $operation, array $context = []): ?object
+    protected function patch(mixed $resource, Operation $operation, array &$context = []): ?object
     {
         $existingEntity = $this->find($this->getEntityClass($operation), $resource->id);
 
@@ -552,7 +566,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    protected function put(mixed $resource, Operation $operation, array $context = []): ?object
+    protected function put(mixed $resource, Operation $operation, array &$context = []): ?object
     {
         $existingEntity = $this->find($this->getEntityClass($operation), $resource->id);
 
@@ -565,7 +579,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    protected function post(mixed $resource, array $context = []): ?object
+    protected function post(mixed $resource, array &$context = []): ?object
     {
         $entity = $this->createEntity($resource, $context);
         $this->entityManager->persist($entity);
@@ -576,7 +590,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    protected function createEntity(object $resource, array $context, ?object $existingEntity = null): object
+    protected function createEntity(object $resource, array &$context, ?object $existingEntity = null): object
     {
         return $this->toEntity($resource, $context, $existingEntity);
     }
@@ -586,9 +600,19 @@ class Mapper implements ProviderInterface, ProcessorInterface
         return $this->entityManager->getRepository($class)->find($id);
     }
 
-    private function addElementIfNotExists(?array &$array, mixed $element): void
+    private function addElementIfNotExists(?array &$array, mixed $element, mixed $key = null): void
     {
-        if (!in_array($element, $array ??= [], true)) {
+        $array ??= [];
+
+        if (null !== $key) {
+            if (!isset($array[$key])) {
+                $array[$key] = $element;
+
+                return;
+            }
+        }
+
+        if (!in_array($element, $array, true)) {
             $array[] = $element;
         }
     }
@@ -596,14 +620,14 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    private function setResourceProperty(object $resource, string $propertyName, mixed $propertyValue, bool $appendArray = false): void
+    private function setResourceProperty(object $resource, string $propertyName, mixed $propertyValue, bool $appendArray = false, array &$context = []): void
     {
         if (null === $propertyValue) {
             return;
         }
 
-        if (null !== ($reflection = $this->getRelationPropertyClass($resource, $propertyName))) {
-            $ref = $this->loadReflection($resource);
+        if (null !== ($reflection = $this->getRelationPropertyClass($resource, $propertyName, $context))) {
+            $ref = $this->loadReflection($resource, $context);
             $allowed = ($ref->getProperty($propertyName)->getAttributes(OnDeny::class)[0] ?? null)?->newInstance()->allowedFields ?? [];
             $this->allowedFields[$reflection] = $allowed;
         }
@@ -677,7 +701,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         return $output;
     }
 
-    private function compareValues(mixed $value1, mixed $value2): bool
+    private function compareValues(mixed $value1, mixed $value2, array &$context = []): bool
     {
         if ($value1 === $value2) {
             return true;
@@ -697,7 +721,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
                 $firstSet = $value1->getValues();
                 $secondSet = $value2;
                 for ($i = 0, $iMax = count($firstSet); $i < $iMax; $i++) {
-                    $classesAreEqual = get_class($firstSet[$i]) === $this->mapFromAttribute($secondSet[$i]);
+                    $classesAreEqual = get_class($firstSet[$i]) === $this->mapFromAttribute($secondSet[$i], $context);
                     $idsAreEqual = $firstSet[$i]->getId() === $secondSet[$i]->id;
                     if (!$classesAreEqual || !$idsAreEqual) {
                         return false;
@@ -711,10 +735,10 @@ class Mapper implements ProviderInterface, ProcessorInterface
         return false;
     }
 
-    private function resetValue(object $object, string $property): void
+    private function resetValue(object $object, string $property, array &$context = []): void
     {
         try {
-            $type = $this->loadReflection($object)->getProperty($property)->getType()->getName();
+            $type = $this->loadReflection($object, $context)->getProperty($property)->getType()->getName();
         } catch (ReflectionException) {
             return;
         }
@@ -731,7 +755,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    private function processRelationProperty(object $object, string $propertyName, bool $returnType = false): bool|string|null
+    private function processRelationProperty(object $object, string $propertyName, bool $returnType = false, array &$context = []): bool|string|null
     {
         $types = $this->phpDocExtractor->getTypes($object::class, $propertyName);
 
@@ -747,7 +771,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
                 return $collectionValueType?->getClassName() ?? null;
             }
 
-            return $this->isMappedType($collectionValueType?->getClassName(), MappingType::RESOURCE);
+            return $this->isMappedType($collectionValueType?->getClassName(), MappingType::RESOURCE, $context);
         }
 
         return null;
@@ -756,20 +780,20 @@ class Mapper implements ProviderInterface, ProcessorInterface
     /**
      * @throws ReflectionException
      */
-    private function isRelationProperty(object $object, string $propertyName): bool
+    private function isRelationProperty(object $object, string $propertyName, array &$context = []): bool
     {
-        return (bool) $this->processRelationProperty($object, $propertyName);
+        return (bool) $this->processRelationProperty($object, $propertyName, context: $context);
     }
 
     /**
      * @throws ReflectionException
      */
-    private function getRelationPropertyClass(object $object, string $propertyName): ?string
+    private function getRelationPropertyClass(object $object, string $propertyName, array &$context = []): ?string
     {
-        return $this->processRelationProperty($object, $propertyName, true);
+        return $this->processRelationProperty($object, $propertyName, true, $context);
     }
 
-    private function unsetNormalizationGroups(array $context, array $targetNormalizationGroups): array
+    private function unsetNormalizationGroups(array &$context, array $targetNormalizationGroups): array
     {
         $targetGroups = [];
         foreach ($context['groups'] as $group) {
