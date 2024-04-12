@@ -48,9 +48,10 @@ use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
-use Symfony\Component\PropertyInfo\Type;
 use Symfony\Component\Serializer;
 use Symfony\Component\Serializer\Annotation\Ignore;
+use Symfony\Component\TypeInfo\Type\CollectionType;
+use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
 use Vairogs\Component\Functions\Iteration;
@@ -333,7 +334,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
                 continue;
             }
 
-            if (Type::BUILTIN_TYPE_ARRAY === $propertyType && $this->isRelationProperty($object, $propertyName, $context)) {
+            if (TypeIdentifier::ARRAY->value === $propertyType && $this->isRelationProperty($object, $propertyName, $context)) {
                 $this->resetValue($output, $propertyName, $context);
 
                 if (null === $propertyValue || 0 === count($propertyValue)) {
@@ -822,7 +823,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         }
 
         $value = match (true) {
-            Type::BUILTIN_TYPE_ARRAY === $type => [],
+            TypeIdentifier::ARRAY->value === $type => [],
             in_array($type, [Collection::class, ArrayCollection::class], true) => new ArrayCollection(),
             default => null,
         };
@@ -839,21 +840,21 @@ class Mapper implements ProviderInterface, ProcessorInterface
         bool $returnType = false,
         array &$context = [],
     ): bool|string|null {
-        $types = $this->phpDocExtractor->getTypes($object::class, $propertyName);
+        $type = $this->phpDocExtractor->getType($object::class, $propertyName);
 
-        if (null === $types) {
+        if (null === $type) {
             return null;
         }
 
-        $type = $types[0];
-        if ($type->isCollection()) {
-            $collectionValueType = $type->getCollectionValueTypes()[0] ?? null;
+        if ($type->asNonNullable() instanceof CollectionType) {
+            /** @noinspection PhpPossiblePolymorphicInvocationInspection */
+            $collectionValueType = $type->asNonNullable()->getCollectionValueType();
 
             if ($returnType) {
-                return $collectionValueType?->getClassName() ?? null;
+                return $collectionValueType->getClassName() ?? null;
             }
 
-            return $this->isMappedType($collectionValueType?->getClassName(), MappingType::RESOURCE, $context);
+            return $this->isMappedType($collectionValueType->getClassName(), MappingType::RESOURCE, $context);
         }
 
         return null;
