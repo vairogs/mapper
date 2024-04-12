@@ -10,14 +10,36 @@
     "minimum-stability": "dev",
     "prefer-stable": false,
     "config": {
-        "sort-packages": true,
-        "allow-plugins": {
-            "symfony/runtime": true
-        }
+        "sort-packages": true
     },
     "extra": {
         "branch-alias": {
             "dev-master": "0.1.x-dev"
         }
+    },
+    "require": {
+        "php": ">=8.3",
+        "api-platform/core": ">=3.2",
+        "doctrine/collections": "*",
+        "doctrine/dbal": "*",
+        "doctrine/orm": "*",
+        "doctrine/persistence": "*",
+        "symfony/config": "*",
+        "symfony/dependency-injection": "*",
+        "symfony/http-kernel": "*",
+        "symfony/property-access": "*",
+        "symfony/security-bundle": "*",
+        "symfony/security-core": "*",
+        "symfony/serializer": "*",
+        "symfony/serializer": "*",
+        "symfony/translation": "*",
+        "symfony/type-info": "*",
+        "vairogs/bundle": "*",
+        "vairogs/doctrine-tools": "*",
+        "vairogs/functions": "*",
+        "vairogs/functions": "*"
+    },
+    "conflict": {
+        "doctrine/dbal": "<4.0"
     }
 }
