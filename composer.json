@@ -31,12 +31,10 @@
         "symfony/security-bundle": "*",
         "symfony/security-core": "*",
         "symfony/serializer": "*",
-        "symfony/serializer": "*",
         "symfony/translation": "*",
         "symfony/type-info": "*",
         "vairogs/bundle": "*",
         "vairogs/doctrine-tools": "*",
-        "vairogs/functions": "*",
         "vairogs/functions": "*"
     },
     "conflict": {
