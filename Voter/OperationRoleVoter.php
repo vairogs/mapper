@@ -65,6 +65,8 @@ class OperationRoleVoter extends Voter
             return true;
         }
 
-        return (new Iteration())->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
+        return (new class() {
+            use Iteration\_HaveCommonElements;
+        })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
     }
 }

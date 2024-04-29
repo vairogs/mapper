@@ -29,6 +29,14 @@ final readonly class MapperConfiguration implements Dependency
                         ->booleanNode('operation_voter')->defaultValue(false)->end()
                     ->end()
                 ->end()
+                ->arrayNode('mapping')
+                    ->arrayPrototype()
+                        ->children()
+                            ->scalarNode('entity')->isRequired()->end()
+                            ->scalarNode('resource')->isRequired()->end()
+                        ->end()
+                    ->end()
+                ->end()
             ->end()
         ->end();
     }

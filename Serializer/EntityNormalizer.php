@@ -58,8 +58,9 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         return $this->normalizer->normalize($resource, $format, $context);
     }
 
-    public function getSupportedTypes(?string $format): array
-    {
+    public function getSupportedTypes(
+        ?string $format,
+    ): array {
         return [
             'object' => true,
         ];
