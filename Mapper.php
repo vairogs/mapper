@@ -49,7 +49,6 @@ use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
 use Symfony\Component\Serializer;
-use Symfony\Component\Serializer\Annotation\Ignore;
 use Symfony\Component\TypeInfo\Type\CollectionType;
 use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Contracts\Translation\TranslatorInterface;
@@ -172,7 +171,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
             use Iteration\_AddElementIfNotExists;
         })->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $context), $targetResourceClass);
 
-        $operation = $context['operation'] ?? $context['root_operation'] ?? null;
+        $operation = $context['request']->attributes->get('_api_operation');
         if (is_object($operation)) {
             $operation = $operation::class;
         }
@@ -216,8 +215,16 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
             $propertyValue = $this->accessor->getValue($object, $propertyName);
 
+            $ignore = [];
+            if (class_exists(Serializer\Attribute\Ignore::class)) {
+                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Attribute\Ignore::class));
+            }
+            if (class_exists(Serializer\Annotation\Ignore::class)) {
+                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Annotation\Ignore::class));
+            }
+
             $c = null;
-            if (null === $propertyValue || [] !== $property->getAttributes(Ignore::class) || (Collection::class === $propertyType && 0 === ($c = $propertyValue->count()))) {
+            if (null === $propertyValue || [] !== $ignore || (Collection::class === $propertyType && 0 === ($c = $propertyValue->count()))) {
                 continue;
             }
 
@@ -537,6 +544,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
         $addElement->addElementIfNotExists($context[self::VAIROGS_MAPPER_REF], $reflection, $reflectionClass);
         $addElement->addElementIfNotExists($context[self::VAIROGS_MAPPER_REF], $reflection, $class);
+
         $addElement->addElementIfNotExists($this->reflections, $reflection, $reflectionClass);
         $addElement->addElementIfNotExists($this->reflections, $reflection, $class);
 
@@ -629,8 +637,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
             }
 
             if ($extension instanceof OrderExtension) {
-                $orderByDqlPart = $queryBuilder->getDQLPart('orderBy');
-                if ([] !== $orderByDqlPart) {
+                if ([] !== $queryBuilder->getDQLPart('orderBy')) {
                     continue;
                 }
 
@@ -745,7 +752,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         if (null !== ($reflection = $this->getRelationPropertyClass($resource, $propertyName, $context))) {
             $ref = $this->loadReflection($resource, $context);
 
-            $operation = $context['operation'] ?? $context['root_operation'] ?? null;
+            $operation = $context['request']->attributes->get('_api_operation');
             if (is_object($operation)) {
                 $operation = $operation::class;
             }

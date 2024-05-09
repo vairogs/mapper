@@ -6,6 +6,7 @@ use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use ArrayObject;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
+use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 use Symfony\Component\Serializer\Exception\ExceptionInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
@@ -15,8 +16,9 @@ use Vairogs\Component\Mapper\Mapper;
 
 use function is_object;
 
-#[Autoconfigure(tags: ['serializer.normalizer'], lazy: true)]
-class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
+#[Autoconfigure(lazy: true)]
+#[AutoconfigureTag('serializer.normalizer')]
+final class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
 {
     use NormalizerAwareTrait;
 

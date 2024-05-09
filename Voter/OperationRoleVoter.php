@@ -5,6 +5,7 @@ namespace Vairogs\Component\Mapper\Voter;
 use ApiPlatform\Metadata\ApiResource;
 use Override;
 use ReflectionException;
+use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
@@ -15,7 +16,8 @@ use Vairogs\Component\Mapper\Mapper;
 use function array_merge;
 use function in_array;
 
-class OperationRoleVoter extends Voter
+#[Autoconfigure(lazy: true)]
+final class OperationRoleVoter extends Voter
 {
     public function __construct(
         protected readonly Mapper $mapper,
