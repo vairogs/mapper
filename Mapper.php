@@ -347,7 +347,16 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
         foreach ($properties as $property) {
             $propertyName = $property->getName();
-            if (!property_exists($targetEntityClass, $propertyName) || [] !== $property->getAttributes(Ignore::class)) {
+
+            $ignore = [];
+            if (class_exists(Serializer\Attribute\Ignore::class)) {
+                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Attribute\Ignore::class));
+            }
+            if (class_exists(Serializer\Annotation\Ignore::class)) {
+                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Annotation\Ignore::class));
+            }
+
+            if (!property_exists($targetEntityClass, $propertyName) || [] !== $ignore) {
                 continue;
             }
 

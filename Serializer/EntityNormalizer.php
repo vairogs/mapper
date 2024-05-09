@@ -18,7 +18,7 @@ use function is_object;
 
 #[Autoconfigure(lazy: true)]
 #[AutoconfigureTag('serializer.normalizer')]
-final class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
+class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
 {
     use NormalizerAwareTrait;
 

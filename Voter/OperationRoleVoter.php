@@ -17,7 +17,7 @@ use function array_merge;
 use function in_array;
 
 #[Autoconfigure(lazy: true)]
-final class OperationRoleVoter extends Voter
+class OperationRoleVoter extends Voter
 {
     public function __construct(
         protected readonly Mapper $mapper,

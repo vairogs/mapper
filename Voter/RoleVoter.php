@@ -16,7 +16,7 @@ use Vairogs\Component\Mapper\Mapper;
 use function in_array;
 
 #[Autoconfigure(lazy: true)]
-final class RoleVoter extends Voter
+class RoleVoter extends Voter
 {
     public function __construct(
         protected readonly Mapper $mapper,
