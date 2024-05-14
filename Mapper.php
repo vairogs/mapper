@@ -39,7 +39,7 @@ use ReflectionClass;
 use ReflectionException;
 use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
-use Symfony\Component\DependencyInjection\Attribute\TaggedIterator;
+use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -94,7 +94,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         protected readonly ResourceMetadataCollectionFactoryInterface $resourceMetadataFactory,
         protected readonly Security $security,
         protected readonly TranslatorInterface $translator,
-        #[TaggedIterator('api_platform.doctrine.orm.query_extension.collection')]
+        #[AutowireIterator('api_platform.doctrine.orm.query_extension.collection')]
         protected readonly iterable $collectionExtensions = [],
     ) {
         $this->accessor = PropertyAccess::createPropertyAccessor();
@@ -171,7 +171,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
             use Iteration\_AddElementIfNotExists;
         })->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $context), $targetResourceClass);
 
-        $operation = $context['request']->attributes->get('_api_operation');
+        $operation = $context['operation'] ?? $context['root_operation'] ?? ($context['request'] ?? null)?->attributes->get('_api_operation');
         if (is_object($operation)) {
             $operation = $operation::class;
         }
@@ -371,8 +371,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
                 $propertyValue = null;
             }
 
-            if (is_subclass_of($propertyType, DateTimeInterface::class)
-                && $propertyValue instanceof DateTimeInterface) {
+            if (is_subclass_of($propertyType, DateTimeInterface::class) && $propertyValue instanceof DateTimeInterface) {
                 $propertyValue = match (true) {
                     $propertyValue instanceof UTCDateTimeImmutable => $propertyValue,
                     default => DateTimeImmutable::createFromInterface($propertyValue),
@@ -761,7 +760,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         if (null !== ($reflection = $this->getRelationPropertyClass($resource, $propertyName, $context))) {
             $ref = $this->loadReflection($resource, $context);
 
-            $operation = $context['request']->attributes->get('_api_operation');
+            $operation = $context['operation'] ?? $context['root_operation'] ?? ($context['request'] ?? null)?->attributes->get('_api_operation');
             if (is_object($operation)) {
                 $operation = $operation::class;
             }
