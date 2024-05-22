@@ -37,7 +37,6 @@ use Exception;
 use InvalidArgumentException;
 use ReflectionClass;
 use ReflectionException;
-use Symfony\Bundle\SecurityBundle\Security;
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
@@ -48,6 +47,7 @@ use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
+use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
 use Symfony\Component\Serializer;
 use Symfony\Component\TypeInfo\Type\CollectionType;
 use Symfony\Component\TypeInfo\TypeIdentifier;
@@ -60,6 +60,7 @@ use Vairogs\Component\Mapper\Attribute\SkipCircularReference;
 use Vairogs\Component\Mapper\Constants\Enum\MappingType;
 use Vairogs\Component\Mapper\Exception\MappingException;
 
+use function array_column;
 use function array_key_exists;
 use function array_merge;
 use function class_exists;
@@ -82,7 +83,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
     public const string VAIROGS_MAPPER_MAP = 'VAIROGS_MAPPER_MAP';
 
     private array $reflections = [];
-    private array $map = [];
+    private array $map;
     private array $allowedFields = [];
 
     private readonly PropertyAccessor $accessor;
@@ -92,17 +93,14 @@ class Mapper implements ProviderInterface, ProcessorInterface
         protected readonly EntityManagerInterface $entityManager,
         protected readonly ParameterBagInterface $bag,
         protected readonly ResourceMetadataCollectionFactoryInterface $resourceMetadataFactory,
-        protected readonly Security $security,
+        protected readonly AuthorizationCheckerInterface $security,
         protected readonly TranslatorInterface $translator,
         #[AutowireIterator('api_platform.doctrine.orm.query_extension.collection')]
         protected readonly iterable $collectionExtensions = [],
     ) {
         $this->accessor = PropertyAccess::createPropertyAccessor();
         $this->phpDocExtractor = new PhpDocExtractor();
-
-        foreach ($this->bag->get('vairogs.mapper.mapping') as $entry) {
-            $this->map[$entry['entity']] = $entry['resource'];
-        }
+        $this->map = array_column($this->bag->get('vairogs.mapper.mapping'), 'resource', 'entity');
     }
 
     /**
@@ -217,18 +215,20 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
             $ignore = [];
             if (class_exists(Serializer\Attribute\Ignore::class)) {
-                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Attribute\Ignore::class));
+                $ignore[] = $property->getAttributes(Serializer\Attribute\Ignore::class);
             }
             if (class_exists(Serializer\Annotation\Ignore::class)) {
-                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Annotation\Ignore::class));
+                $ignore[] = $property->getAttributes(Serializer\Annotation\Ignore::class);
             }
+
+            $ignore = array_merge(...$ignore);
 
             $c = null;
             if (null === $propertyValue || [] !== $ignore || (Collection::class === $propertyType && 0 === ($c = $propertyValue->count()))) {
                 continue;
             }
 
-            if ((class_exists($propertyType) && $this->isEntity($propertyType, $context)) || Collection::class === $propertyType) {
+            if (Collection::class === $propertyType || (class_exists($propertyType) && $this->isEntity($propertyType, $context))) {
                 if (Collection::class === $propertyType) {
                     $this->setResourceProperty($output, $propertyName, [], context: $context);
                     $targetClass = $this->mapFromAttribute($propertyValue->getTypeClass()->getName(), $context);
@@ -350,11 +350,13 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
             $ignore = [];
             if (class_exists(Serializer\Attribute\Ignore::class)) {
-                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Attribute\Ignore::class));
+                $ignore[] = $property->getAttributes(Serializer\Attribute\Ignore::class);
             }
             if (class_exists(Serializer\Annotation\Ignore::class)) {
-                $ignore = array_merge($ignore, $property->getAttributes(Serializer\Annotation\Ignore::class));
+                $ignore[] = $property->getAttributes(Serializer\Annotation\Ignore::class);
             }
+
+            $ignore = array_merge(...$ignore);
 
             if (!property_exists($targetEntityClass, $propertyName) || [] !== $ignore) {
                 continue;
@@ -411,7 +413,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
 
             if ($this->isMappedType($propertyType, MappingType::RESOURCE, $context)) {
                 $targetClass = $this->mapFromAttribute($propertyType, $context);
-                if (isset($propertyValue->id)) {
+                if (null !== $propertyValue->id) {
                     if (null === ($entity = $this->find($targetClass, $propertyValue->id))) {
                         throw new MappingException("$targetClass entity with id $propertyValue->id not found!");
                     }
@@ -772,16 +774,12 @@ class Mapper implements ProviderInterface, ProcessorInterface
             }
         }
 
-        if ([] !== $this->allowedFields[$resource::class]) {
-            $this->allowedFields[$resource::class] = array_merge($this->allowedFields[$resource::class], ['id']);
+        if (([] !== $this->allowedFields[$resource::class]) && !in_array('id', $this->allowedFields[$resource::class] ?? [], true)) {
+            $this->allowedFields[$resource::class][] = 'id';
         }
 
-        if (!$granted && is_object($propertyValue) && $this->isResource($propertyValue, $context)) {
-            if (!array_key_exists($propertyValue::class, $context[self::VAIROGS_MAPPER_PARENTS])) {
-                if (!in_array($propertyName, $this->allowedFields[$resource::class], true)) {
-                    return;
-                }
-            }
+        if (!$granted && is_object($propertyValue) && $this->isResource($propertyValue, $context) && !array_key_exists($propertyValue::class, $context[self::VAIROGS_MAPPER_PARENTS]) && !in_array($propertyName, $this->allowedFields[$resource::class], true)) {
+            return;
         }
 
         if ($appendArray) {
@@ -801,13 +799,13 @@ class Mapper implements ProviderInterface, ProcessorInterface
         string $propertyName,
     ): bool {
         $attributes = $resourceReflection->getProperty($propertyName)->getAttributes(SkipCircularReference::class);
-        $maxLevels = null;
+        $maxLevels = -1;
 
         if ([] !== $attributes) {
             $maxLevels = $attributes[0]->newInstance()->maxLevels;
         }
 
-        return in_array($targetClass, $context[self::VAIROGS_MAPPER_PARENTS], true) && (($maxLevels > 0 && $context[self::VAIROGS_MAPPER_LEVEL] >= $maxLevels) || null === $maxLevels);
+        return in_array($targetClass, $context[self::VAIROGS_MAPPER_PARENTS], true) && (($maxLevels > 0 && $context[self::VAIROGS_MAPPER_LEVEL] >= $maxLevels) || -1 === $maxLevels);
     }
 
     /**
@@ -821,12 +819,14 @@ class Mapper implements ProviderInterface, ProcessorInterface
         $groupAttributes = [];
 
         if (class_exists(Serializer\Annotation\Groups::class)) {
-            $groupAttributes = array_merge($groupAttributes, $property->getAttributes(Serializer\Annotation\Groups::class));
+            $groupAttributes[] = $property->getAttributes(Serializer\Annotation\Groups::class);
         }
 
         if (class_exists(Serializer\Attribute\Groups::class)) {
-            $groupAttributes = array_merge($groupAttributes, $property->getAttributes(Serializer\Attribute\Groups::class));
+            $groupAttributes[] = $property->getAttributes(Serializer\Attribute\Groups::class);
         }
+
+        $groupAttributes = array_merge(...$groupAttributes);
 
         if (1 === count($groupAttributes)) {
             return $groupAttributes[0]->getArguments()[0];
@@ -897,7 +897,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         array &$context = [],
     ): void {
         try {
-            $type = $this->loadReflection($object, $context)->getProperty($property)->getType()->getName();
+            $type = $this->loadReflection($object, $context)->getProperty($property)->getType()?->getName();
         } catch (ReflectionException) {
             return;
         }
@@ -931,7 +931,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
             $collectionValueType = $type->asNonNullable()->getCollectionValueType();
 
             if ($returnType) {
-                return $collectionValueType->getClassName() ?? null;
+                return $collectionValueType->getClassName();
             }
 
             return $this->isMappedType($collectionValueType->getClassName(), MappingType::RESOURCE, $context);
