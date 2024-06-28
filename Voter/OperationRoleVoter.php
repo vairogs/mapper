@@ -59,8 +59,8 @@ class OperationRoleVoter extends Voter
     ): bool {
         $reflection = $this->mapper->loadReflection($subject);
         $allowedRoles = [];
-        foreach ($reflection->getAttributes(GrantedOperation::class) as $attribute) {
-            $allowedRoles[] = $attribute->newInstance()->role;
+        foreach ($reflection->getAttributes(GrantedOperation::class) as $item) {
+            $allowedRoles[] = $item->newInstance()->role;
         }
 
         if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {

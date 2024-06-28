@@ -115,7 +115,10 @@ class Mapper implements ProviderInterface, ProcessorInterface
     ): array|object|null {
         return match (true) {
             $operation instanceof GetCollection => $this->getCollection($operation, $context),
-            $operation instanceof Get => $this->getItem($operation, $uriVariables['id'], $context),
+            $operation instanceof Get,
+            $operation instanceof Patch,
+            $operation instanceof Put,
+            $operation instanceof Post => $this->getItem($operation, $uriVariables['id'], $context),
             default => throw new BadRequestHttpException(sprintf('Invalid operation: "%s"', $operation::class)),
         };
     }
@@ -156,6 +159,10 @@ class Mapper implements ProviderInterface, ProcessorInterface
             return null;
         }
 
+        if (!array_key_exists('groups', $context)) {
+            $context['groups'] = [];
+        }
+
         if (!$this->isMappedType($object, MappingType::ENTITY, $context)) {
             if (!$this->isEntity($object, $context)) {
                 throw new InvalidArgumentException(sprintf('%s is not an entity', $object::class));
@@ -165,6 +172,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         }
 
         $context[self::VAIROGS_MAPPER_LEVEL] ??= +1;
+
         (new class() {
             use Iteration\_AddElementIfNotExists;
         })->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $context), $targetResourceClass);
@@ -339,6 +347,10 @@ class Mapper implements ProviderInterface, ProcessorInterface
         array &$context = [],
         ?object $existingEntity = null,
     ): object {
+        if (!array_key_exists('groups', $context)) {
+            $context['groups'] = [];
+        }
+
         $reflection = $this->loadReflection($object);
         $targetEntityClass = $this->mapFromAttribute($reflection->getName(), $context);
 
@@ -774,7 +786,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
             }
         }
 
-        if (([] !== $this->allowedFields[$resource::class]) && !in_array('id', $this->allowedFields[$resource::class] ?? [], true)) {
+        if ([] !== $this->allowedFields[$resource::class] && !in_array('id', $this->allowedFields[$resource::class] ?? [], true)) {
             $this->allowedFields[$resource::class][] = 'id';
         }
 
@@ -842,7 +854,7 @@ class Mapper implements ProviderInterface, ProcessorInterface
         string $resourceClass,
         array $context = [],
     ): array {
-        $output = $context['groups'] ?? [];
+        $output = $context['groups'];
 
         if (empty($output)) {
             $resourceMetadata = $this->resourceMetadataFactory->create($resourceClass);
