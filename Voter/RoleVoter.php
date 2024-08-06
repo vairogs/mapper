@@ -2,7 +2,6 @@
 
 namespace Vairogs\Component\Mapper\Voter;
 
-use ApiPlatform\Metadata\ApiResource;
 use Override;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
@@ -11,7 +10,7 @@ use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Vairogs\Component\Functions\Iteration;
-use Vairogs\Component\Mapper\Mapper;
+use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
 use function in_array;
 
@@ -19,7 +18,7 @@ use function in_array;
 class RoleVoter extends Voter
 {
     public function __construct(
-        protected readonly Mapper $mapper,
+        private readonly MapperInterface $mapper,
     ) {
     }
 
@@ -33,7 +32,7 @@ class RoleVoter extends Voter
     ): bool {
         $reflection = $this->mapper->loadReflection($subject);
 
-        return [] !== $reflection->getAttributes(ApiResource::class) && [] !== $reflection->getAttributes(IsGranted::class);
+        return $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
     }
 
     /**
@@ -47,8 +46,8 @@ class RoleVoter extends Voter
     ): bool {
         $reflection = $this->mapper->loadReflection($subject);
         $allowedRoles = [];
-        foreach ($reflection->getAttributes(IsGranted::class) as $attribute) {
-            $allowedRoles[] = $attribute->newInstance()->attribute;
+        foreach ($reflection->getAttributes(IsGranted::class) as $item) {
+            $allowedRoles[] = $item->newInstance()->attribute;
         }
 
         if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {

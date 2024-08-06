@@ -4,6 +4,7 @@ namespace Vairogs\Component\Mapper\Serializer;
 
 use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use ArrayObject;
+use Doctrine\ORM\Exception\ORMException;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
@@ -12,8 +13,9 @@ use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Vairogs\Component\Mapper\Constants\Enum\MappingType;
-use Vairogs\Component\Mapper\Mapper;
+use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
+use function array_key_exists;
 use function is_object;
 
 #[Autoconfigure(lazy: true)]
@@ -25,7 +27,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
     private const string VAIROGS_MAPPER_ENTITY_NORMALIZER = 'VAIROGS_MAPPER_ENTITY_NORMALIZER';
 
     public function __construct(
-        private readonly Mapper $mapper,
+        private readonly MapperInterface $mapper,
     ) {
     }
 
@@ -48,14 +50,23 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
      * @throws ReflectionException
      * @throws ExceptionInterface
      * @throws ResourceClassNotFoundException
+     * @throws ORMException
      */
     public function normalize(
-        mixed $object,
+        mixed $data,
         ?string $format = null,
         array $context = [],
     ): float|array|ArrayObject|bool|int|string|null {
-        $resource = $this->mapper->toResource($object, $context);
+        if (
+            array_key_exists($data::class, $this->mapper->alreadyMapped)
+            && array_key_exists($data->getId(), $this->mapper->alreadyMapped[$data::class])
+        ) {
+            return $this->mapper->alreadyMapped[$data::class][$data->getId()];
+        }
+
+        $resource = $this->mapper->toResource($data, $context);
         $context[self::VAIROGS_MAPPER_ENTITY_NORMALIZER] = true;
+        $this->mapper->alreadyMapped[$data::class][$data->getId()] = $resource;
 
         return $this->normalizer->normalize($resource, $format, $context);
     }

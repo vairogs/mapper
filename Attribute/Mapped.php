@@ -9,6 +9,7 @@ final readonly class Mapped
 {
     public function __construct(
         public string $mapsTo,
+        public ?string $reverse = null,
     ) {
     }
 }

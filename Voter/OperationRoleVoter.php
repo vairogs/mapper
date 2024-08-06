@@ -2,7 +2,6 @@
 
 namespace Vairogs\Component\Mapper\Voter;
 
-use ApiPlatform\Metadata\ApiResource;
 use Override;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
@@ -11,7 +10,7 @@ use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
-use Vairogs\Component\Mapper\Mapper;
+use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
 use function array_merge;
 use function in_array;
@@ -20,7 +19,7 @@ use function in_array;
 class OperationRoleVoter extends Voter
 {
     public function __construct(
-        protected readonly Mapper $mapper,
+        private readonly MapperInterface $mapper,
     ) {
     }
 
@@ -34,15 +33,15 @@ class OperationRoleVoter extends Voter
     ): bool {
         $reflection = $this->mapper->loadReflection($subject);
 
-        $check = [] !== $reflection->getAttributes(ApiResource::class) && [] !== $reflection->getAttributes(GrantedOperation::class);
+        $check = $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
 
         if ($check) {
             $grantedAttributes = [];
             foreach ($reflection->getAttributes(GrantedOperation::class) as $grantedAttribute) {
-                $grantedAttributes = array_merge($grantedAttributes, $grantedAttribute->newInstance()->operations);
+                $grantedAttributes[] = $grantedAttribute->newInstance()->operations;
             }
 
-            return in_array($attribute, $grantedAttributes, true);
+            return in_array($attribute, array_merge(...$grantedAttributes), true);
         }
 
         return false;
