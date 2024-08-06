@@ -94,6 +94,10 @@ trait _MapFromAttribute
         $matchingClasses = [];
         $finder = new Finder();
         $dirname = dirname(getcwd());
+        if ('cli' === PHP_SAPI) {
+            $dirname = getcwd();
+        }
+
         $finder->files()->in([$dirname . '/src/Entity', $dirname . '/src/ApiResource'])->name('*.php');
 
         foreach ($finder as $file) {
