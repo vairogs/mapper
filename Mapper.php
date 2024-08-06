@@ -276,21 +276,9 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
                     use Iteration\_HaveCommonElements;
                 });
 
-                //                dd($context[self::VAIROGS_MAPPER_PARENTS] ?? []);
-                //                $targetGroups = $this->getNormalizationGroups($targetClass, $context);
-                //                $propertyGroups = $this->getResourcePropertyNormalizationGroups($targetResourceReflection, $propertyName);
-                //                if (
-                //                    !$commonElements->haveCommonElements($propertyGroups, $context['groups'])
-                //                    && !$commonElements->haveCommonElements($targetGroups, $context['groups'])
-                //                ) {
-                //                    //continue;
-                //                }
-
                 if ($this->isCircularReference($targetClass, $context, $targetResourceReflection, $propertyName)) {
                     continue;
                 }
-
-                // $context = $this->unsetNormalizationGroups($context, $context['groups']);
 
                 $open = false;
                 $att = $this->getApiResource($targetClass, $context)->newInstance();
@@ -907,25 +895,6 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         return [];
     }
 
-    //    /**
-    //     * @throws ResourceClassNotFoundException
-    //     */
-    //    private function getNormalizationGroups(
-    //        string $resourceClass,
-    //        array $context = [],
-    //    ): array {
-    //        $output = $context['groups'];
-    //
-    //        if (empty($output)) {
-    //            $resourceMetadata = $this->resourceMetadataFactory->create($resourceClass);
-    //            if (null !== $normalizationContext = $resourceMetadata->getOperation()->getNormalizationContext()) {
-    //                 $output = array_merge($output, $normalizationContext['groups']);
-    //            }
-    //        }
-    //
-    //        return $output;
-    //    }
-
     /**
      * @throws ReflectionException
      */
@@ -1039,26 +1008,4 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     ): ?string {
         return $this->processRelationProperty($object, $propertyName, true, $context);
     }
-
-    //    private function unsetNormalizationGroups(
-    //        array $context,
-    //        array $targetNormalizationGroups,
-    //    ): array {
-    //        if (!array_key_exists('groups', $context)) {
-    //            $context['groups'] = [];
-    //
-    //            // return $context;
-    //        }
-    //
-    //        $targetGroups = [];
-    //        foreach ($context['groups'] as $group) {
-    //            if (in_array($group, $targetNormalizationGroups, true)) {
-    //                $targetGroups[] = $group;
-    //            }
-    //        }
-    //
-    //        $context['groups'] = $targetGroups;
-    //
-    //        return $context;
-    //    }
 }
