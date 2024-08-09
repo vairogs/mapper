@@ -17,8 +17,10 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\Metadata\Resource\Factory\ResourceMetadataCollectionFactoryInterface;
+use ApiPlatform\Metadata\UrlGeneratorInterface;
 use ApiPlatform\State\ProcessorInterface;
 use ApiPlatform\State\ProviderInterface;
+use ApiPlatform\State\SerializerContextBuilderInterface;
 use ApiPlatform\Symfony\Security\Exception\AccessDeniedException;
 use Countable;
 use DateTimeImmutable;
@@ -45,6 +47,8 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
+use Symfony\Component\Mercure\HubInterface;
+use Symfony\Component\Mercure\Update;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
@@ -111,8 +115,12 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         protected readonly AuthorizationCheckerInterface $security,
         protected readonly TranslatorInterface $translator,
         protected readonly ParameterBagInterface $bag,
+        protected readonly UrlGeneratorInterface $urlGenerator,
+        protected readonly Serializer\SerializerInterface $serializer,
+        protected readonly SerializerContextBuilderInterface $serializerContextBuilder,
         #[AutowireIterator('api_platform.doctrine.orm.query_extension.collection')]
         protected readonly iterable $collectionExtensions = [],
+        protected readonly ?HubInterface $hub = null,
     ) {
         $this->accessor = PropertyAccess::createPropertyAccessor();
         $this->phpDocExtractor = new PhpDocExtractor();
@@ -158,6 +166,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         };
 
         $this->flush($entity, null !== $entity);
+        $this->publishToMercure($entity, $operation, $context);
 
         return $this->toResource($entity, $context);
     }
@@ -1007,5 +1016,31 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         array &$context = [],
     ): ?string {
         return $this->processRelationProperty($object, $propertyName, true, $context);
+    }
+
+    private function publishToMercure(object $entity, Operation $operation, array &$context = []): void
+    {
+        if ($this->hub instanceof HubInterface) {
+            $topic = sprintf('%s/api/%s/%s',
+                $this->urlGenerator->generate('api_entrypoint', [], UrlGeneratorInterface::ABS_URL),
+                $this->mapFromAttribute($entity, $context),
+                $entity->getId(),
+            );
+
+            $resource = $this->mapFromAttribute($entity, $context);
+
+            $context = [
+                'operation' => $operation,
+                'resource_class' => $operation->getClass(),
+                'item_operation_name' => $operation->getName(),
+                'groups' => [$this->loadReflection($resource, $context)->getConstant('READ')],
+            ];
+
+            $data = $this->serializer->serialize($entity, 'jsonld', $context);
+
+            $update = new Update($topic, $data);
+
+            $this->hub->publish($update);
+        }
     }
 }

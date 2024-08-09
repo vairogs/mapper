@@ -45,6 +45,9 @@
         "vairogs/doctrine-tools": "*",
         "vairogs/functions": "*"
     },
+    "suggest": {
+        "symfony/mercure": "*"
+    },
     "conflict": {
         "doctrine/dbal": "<4.0"
     }
