@@ -21,6 +21,7 @@ use Symfony\Component\Serializer\Exception\ExceptionInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Constants\Enum\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
@@ -32,8 +33,6 @@ use function is_object;
 class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
 {
     use NormalizerAwareTrait;
-
-    private const string VAIROGS_MAPPER_ENTITY_NORMALIZER = 'VAIROGS_MAPPER_ENTITY_NORMALIZER';
 
     public function __construct(
         private readonly MapperInterface $mapper,
@@ -48,7 +47,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         ?string $format = null,
         array $context = [],
     ): bool {
-        if (isset($context[self::VAIROGS_MAPPER_ENTITY_NORMALIZER]) || !is_object($data)) {
+        if (isset($context[Context::VAIROGS_M_ENTITY_NORMALIZER]) || !is_object($data)) {
             return false;
         }
 
@@ -74,7 +73,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         }
 
         $resource = $this->mapper->toResource($data, $context);
-        $context[self::VAIROGS_MAPPER_ENTITY_NORMALIZER] = true;
+        $context[Context::VAIROGS_M_ENTITY_NORMALIZER] = true;
         $this->mapper->alreadyMapped[$data::class][$data->getId()] = $resource;
 
         return $this->normalizer->normalize($resource, $format, $context);

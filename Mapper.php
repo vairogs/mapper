@@ -70,12 +70,12 @@ use Symfony\Component\Uid\Uuid;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
 use Vairogs\Component\Functions\Iteration;
-use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Attribute\Mapped;
 use Vairogs\Component\Mapper\Attribute\Modifier;
 use Vairogs\Component\Mapper\Attribute\OnDeny;
 use Vairogs\Component\Mapper\Attribute\SimpleApiResource;
 use Vairogs\Component\Mapper\Attribute\SkipCircularReference;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Constants\Enum\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 use Vairogs\Component\Mapper\Exception\MappingException;
@@ -103,14 +103,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
 {
     use _GetReadProperty;
     use _LoadReflection;
-
     use _MapFromAttribute;
-    public const string VAIROGS_MAPPER_PARENTS = 'VAIROGS_MAPPER_PARENTS';
-    public const string VAIROGS_MAPPER_LEVEL = 'VAIROGS_MAPPER_LEVEL';
-    public const string VAIROGS_MAPPER_REF = 'VAIROGS_MAPPER_REF';
-    public const string VAIROGS_MAPPER_MAP = 'VAIROGS_MAPPER_MAP';
-    public const string VAIROGS_MAPPER_RP = 'VAIROGS_MAPPER_RP';
-    public const string VAIROGS_MAPPER_MM = 'VAIROGS_MAPPER_MM';
 
     public array $alreadyMapped = [];
 
@@ -193,7 +186,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $context['groups'] = [];
         }
 
-        $context[self::VAIROGS_MAPPER_LEVEL] = ($context[self::VAIROGS_MAPPER_LEVEL] ?? 1) + 1;
+        $context[Context::VAIROGS_M_LEVEL] = ($context[Context::VAIROGS_M_LEVEL] ?? 1) + 1;
 
         if (null === $object || null === $this->findById($object::class, $object->getId())) {
             return null;
@@ -218,7 +211,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
 
         (new class {
             use Iteration\_AddElementIfNotExists;
-        })->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $context), $targetResourceClass);
+        })->addElementIfNotExists($context[Context::VAIROGS_M_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $context), $targetResourceClass);
 
         $operation = $context['operation'] ?? $context['root_operation'] ?? ($context['request'] ?? null)?->attributes->get('_api_operation');
         if (is_object($operation)) {
@@ -307,7 +300,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
 
                 $resource = new $targetClass();
                 if (Collection::class === $propertyType) {
-                    if (1 < $context[self::VAIROGS_MAPPER_LEVEL] && !in_array($operation, GrantedOperation::GET, true)) {
+                    if (1 < $context[Context::VAIROGS_M_LEVEL] && !in_array($operation, Context::VAIROGS_M_OP_GET, true)) {
                         continue;
                     }
 
@@ -327,7 +320,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
                     continue;
                 }
 
-                if (2 < $context[self::VAIROGS_MAPPER_LEVEL] && !in_array($operation, GrantedOperation::GET, true)) {
+                if (2 < $context[Context::VAIROGS_M_LEVEL] && !in_array($operation, Context::VAIROGS_M_OP_GET, true)) {
                     continue;
                 }
 
@@ -810,7 +803,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         return $entity;
     }
 
-    private function parseIfUuid(
+    protected function parseIfUuid(
         mixed $id,
     ): mixed {
         if (is_string($id) && Uuid::isValid($id)) {
@@ -823,7 +816,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     /**
      * @throws ReflectionException
      */
-    private function setResourceProperty(
+    protected function setResourceProperty(
         object $resource,
         string $propertyName,
         mixed $propertyValue,
@@ -854,7 +847,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $this->allowedFields[$resource::class][] = $this->getReadProperty($resource, $context);
         }
 
-        if (!$granted && is_object($propertyValue) && $this->isResource($propertyValue, $context) && !array_key_exists($propertyValue::class, $context[self::VAIROGS_MAPPER_PARENTS]) && !in_array($propertyName, $this->allowedFields[$resource::class], true)) {
+        if (!$granted && is_object($propertyValue) && $this->isResource($propertyValue, $context) && !array_key_exists($propertyValue::class, $context[Context::VAIROGS_M_PARENTS]) && !in_array($propertyName, $this->allowedFields[$resource::class], true)) {
             return;
         }
 
@@ -870,7 +863,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     /**
      * @throws ReflectionException
      */
-    private function isCircularReference(
+    protected function isCircularReference(
         string $targetClass,
         array $context,
         ReflectionClass $resourceReflection,
@@ -883,13 +876,13 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $maxLevels = $attributes[0]->newInstance()->maxLevels;
         }
 
-        return in_array($targetClass, $context[self::VAIROGS_MAPPER_PARENTS], true) && (($maxLevels > 0 && $context[self::VAIROGS_MAPPER_LEVEL] >= $maxLevels) || -1 === $maxLevels);
+        return in_array($targetClass, $context[Context::VAIROGS_M_PARENTS], true) && (($maxLevels > 0 && $context[Context::VAIROGS_M_LEVEL] >= $maxLevels) || -1 === $maxLevels);
     }
 
     /**
      * @throws ReflectionException
      */
-    private function getResourcePropertyNormalizationGroups(
+    protected function getResourcePropertyNormalizationGroups(
         ReflectionClass $reflection,
         string $propertyName,
     ): array {
@@ -916,7 +909,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     /**
      * @throws ReflectionException
      */
-    private function compareValues(
+    protected function compareValues(
         mixed $value1,
         mixed $value2,
         array &$context = [],
@@ -954,7 +947,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         return false;
     }
 
-    private function resetValue(
+    protected function resetValue(
         object $object,
         string $property,
         array &$context = [],
@@ -977,7 +970,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     /**
      * @throws ReflectionException
      */
-    private function processRelationProperty(
+    protected function processRelationProperty(
         object $object,
         string $propertyName,
         bool $returnType = false,
@@ -1008,7 +1001,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     /**
      * @throws ReflectionException
      */
-    private function isRelationProperty(
+    protected function isRelationProperty(
         object $object,
         string $propertyName,
         array &$context = [],
@@ -1019,7 +1012,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     /**
      * @throws ReflectionException
      */
-    private function getRelationPropertyClass(
+    protected function getRelationPropertyClass(
         object $object,
         string $propertyName,
         array &$context = [],
@@ -1027,7 +1020,10 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         return $this->processRelationProperty($object, $propertyName, true, $context);
     }
 
-    private function publishToMercure(object $entity, Operation $operation, array &$context = []): void
+    /**
+     * @throws ReflectionException
+     */
+    protected function publishToMercure(object $entity, Operation $operation, array &$context = []): void
     {
         if ($this->hub instanceof HubInterface) {
             $topic = sprintf('%s/api/%s/%s',

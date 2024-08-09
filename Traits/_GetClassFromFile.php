@@ -35,7 +35,7 @@ trait _GetClassFromFile
 
         foreach ($tokens as $i => $token) {
             if (T_NAMESPACE === $token->id) {
-                foreach (array_slice($tokens, $i + 1) as $subToken) {
+                foreach (array_slice(array: $tokens, offset: $i + 1) as $subToken) {
                     if (T_NAME_QUALIFIED === $subToken->id) {
                         $namespace = $subToken->text;
                         break;
@@ -44,7 +44,7 @@ trait _GetClassFromFile
             }
 
             if (T_CLASS === $token->id) {
-                foreach (array_slice($tokens, $i + 1) as $subToken) {
+                foreach (array_slice(array: $tokens, offset: $i + 1) as $subToken) {
                     if (T_WHITESPACE === $subToken->id) {
                         continue;
                     }

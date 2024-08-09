@@ -15,8 +15,8 @@ use Doctrine\Persistence\Proxy;
 use ReflectionClass;
 use ReflectionException;
 use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Exception\MappingException;
-use Vairogs\Component\Mapper\Mapper;
 
 use function array_key_exists;
 use function is_object;
@@ -37,8 +37,8 @@ trait _LoadReflection
             $class = $objectOrClass::class;
         }
 
-        if (array_key_exists($class, $context[Mapper::VAIROGS_MAPPER_REF] ??= [])) {
-            return $context[Mapper::VAIROGS_MAPPER_REF][$class];
+        if (array_key_exists($class, $context[Context::VAIROGS_M_REF] ??= [])) {
+            return $context[Context::VAIROGS_M_REF][$class];
         }
 
         $reflection = new ReflectionClass($objectOrClass);
@@ -58,8 +58,8 @@ trait _LoadReflection
             use _AddElementIfNotExists;
         });
 
-        $addElement->addElementIfNotExists($context[Mapper::VAIROGS_MAPPER_REF], $reflection, $reflectionClass);
-        $addElement->addElementIfNotExists($context[Mapper::VAIROGS_MAPPER_REF], $reflection, $class);
+        $addElement->addElementIfNotExists($context[Context::VAIROGS_M_REF], $reflection, $reflectionClass);
+        $addElement->addElementIfNotExists($context[Context::VAIROGS_M_REF], $reflection, $class);
 
         return $reflection;
     }
