@@ -21,8 +21,10 @@ use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
+use function array_key_exists;
 use function array_merge;
 use function in_array;
+use function property_exists;
 
 #[Autoconfigure(lazy: true)]
 class OperationRoleVoter extends Voter
@@ -40,6 +42,11 @@ class OperationRoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
+        if (property_exists($this->mapper, 'supportOperation') && array_key_exists($subject, $this->mapper->supportOperation)) {
+            return $this->mapper->supportOperation[$subject];
+        }
+
+        $result = false;
         $reflection = $this->mapper->loadReflection($subject);
 
         $check = $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
@@ -50,10 +57,10 @@ class OperationRoleVoter extends Voter
                 $grantedAttributes[] = $grantedAttribute->newInstance()->operations;
             }
 
-            return in_array($attribute, array_merge(...$grantedAttributes), true);
+            $result = in_array($attribute, array_merge(...$grantedAttributes), true);
         }
 
-        return false;
+        return $this->mapper->saveItem($this->mapper->supportOperation, $result, $subject);
     }
 
     /**
@@ -65,6 +72,10 @@ class OperationRoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
+        if (property_exists($this->mapper, 'allowedOperation') && array_key_exists($subject, $this->mapper->allowedOperation)) {
+            return $this->mapper->allowedOperation[$subject];
+        }
+
         $reflection = $this->mapper->loadReflection($subject);
         $allowedRoles = [];
         foreach ($reflection->getAttributes(GrantedOperation::class) as $item) {
@@ -72,11 +83,13 @@ class OperationRoleVoter extends Voter
         }
 
         if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
-            return true;
+            $result = true;
+        } else {
+            $result = (new class {
+                use Iteration\_HaveCommonElements;
+            })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
         }
 
-        return (new class {
-            use Iteration\_HaveCommonElements;
-        })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
+        return $this->mapper->saveItem($this->mapper->allowedOperation, $result, $subject);
     }
 }

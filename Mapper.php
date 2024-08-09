@@ -305,10 +305,18 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
                     }
 
                     if (!$open) {
-                        for ($i = 0; $i < $c; $i++) {
+                        $rp = $this->getReadProperty($resource, $context);
+
+                        $rps = $this->entityManager->getRepository($propertyValue->getTypeClass()->getName())->createQueryBuilder('e')
+                            ->select(sprintf('e.%s', $rp))
+                            ->where(sprintf('e.%s = :relation', $this->findRelationName($propertyValue->getTypeClass()->getName(), $this->loadReflection($object)->getName())))
+                            ->setParameter('relation', $object)
+                            ->getQuery()
+                            ->getSingleColumnResult();
+
+                        foreach ($rps as $key) {
                             $instance = clone $resource;
-                            $rp = $this->getReadProperty($resource, $context);
-                            $instance->{$rp} = $this->getValue($propertyValue->get($i), $rp);
+                            $instance->{$rp} = $key;
                             $this->setResourceProperty($output, $propertyName, $instance, true, $context);
                         }
                         continue;
@@ -346,6 +354,21 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         $addElement->addElementIfNotExists($this->alreadyMapped[$reflection->getName()], $output, $object->getId());
 
         return $output;
+    }
+
+    public function findRelationName(
+        string $sourceClass,
+        string $targetClass,
+    ): ?string {
+        $associations = $this->entityManager->getClassMetadata($sourceClass)->getAssociationMappings();
+
+        foreach ($associations as $fieldName => $association) {
+            if ($association['targetEntity'] === $targetClass) {
+                return $fieldName;
+            }
+        }
+
+        return null;
     }
 
     public function modifyValue(ReflectionClass $reflection, object $output, string $propertyName, mixed &$propertyValue): void

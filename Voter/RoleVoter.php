@@ -21,7 +21,9 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
+use function array_key_exists;
 use function in_array;
+use function property_exists;
 
 #[Autoconfigure(lazy: true)]
 class RoleVoter extends Voter
@@ -39,9 +41,13 @@ class RoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
+        if (property_exists($this->mapper, 'supportRole') && array_key_exists($subject, $this->mapper->supportRole)) {
+            return $this->mapper->supportRole[$subject];
+        }
+
         $reflection = $this->mapper->loadReflection($subject);
 
-        return $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
+        return $this->mapper->saveItem($this->mapper->supportRole, $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class), $subject);
     }
 
     /**
@@ -53,6 +59,10 @@ class RoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
+        if (property_exists($this->mapper, 'allowedRole') && array_key_exists($subject, $this->mapper->allowedRole)) {
+            return $this->mapper->allowedRole[$subject];
+        }
+
         $reflection = $this->mapper->loadReflection($subject);
         $allowedRoles = [];
         foreach ($reflection->getAttributes(IsGranted::class) as $item) {
@@ -60,11 +70,13 @@ class RoleVoter extends Voter
         }
 
         if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
-            return true;
+            $result = true;
+        } else {
+            $result = (new class {
+                use Iteration\_HaveCommonElements;
+            })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
         }
 
-        return (new class {
-            use Iteration\_HaveCommonElements;
-        })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
+        return $this->mapper->saveItem($this->mapper->allowedRole, $result, $subject);
     }
 }

@@ -13,7 +13,6 @@ namespace Vairogs\Component\Mapper\Traits;
 
 use ApiPlatform\Metadata\ApiProperty;
 use ReflectionException;
-use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Exception\MappingException;
 
@@ -22,6 +21,8 @@ use function is_object;
 
 trait _GetReadProperty
 {
+    use _SavedItems;
+
     /**
      * @throws ReflectionException
      */
@@ -33,8 +34,12 @@ trait _GetReadProperty
             $class = $class::class;
         }
 
-        if (array_key_exists($class, $context[Context::VAIROGS_M_RP] ??= [])) {
-            return $context[Context::VAIROGS_M_RP][$class];
+        if (array_key_exists($class, $this->rps)) {
+            return $this->saveItem($context[Context::VAIROGS_M_RP], $this->rps[$class], $class);
+        }
+
+        if (array_key_exists($class, $context[Context::VAIROGS_M_RP] ?? [])) {
+            return $this->saveItem($this->rps, $context[Context::VAIROGS_M_RP][$class], $class);
         }
 
         $property = null;
@@ -54,10 +59,8 @@ trait _GetReadProperty
             throw new MappingException("Class $class does not have a read property!");
         }
 
-        (new class {
-            use _AddElementIfNotExists;
-        })->addElementIfNotExists($context[Context::VAIROGS_M_RP], $property, $class);
+        $this->saveItem($context[Context::VAIROGS_M_RP], $property, $class);
 
-        return $property;
+        return $this->saveItem($this->rps, $property, $class);
     }
 }

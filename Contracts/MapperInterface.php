@@ -82,7 +82,14 @@ interface MapperInterface
     public function mapFromAttribute(
         object|string $objectOrClass,
         array &$context = [],
+        bool $skipGlobal = false,
     ): ?string;
+
+    public function saveItem(
+        ?array &$array,
+        mixed $element,
+        mixed $key = null,
+    ): mixed;
 
     /**
      * @throws ReflectionException

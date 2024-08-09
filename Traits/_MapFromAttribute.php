@@ -14,45 +14,57 @@ namespace Vairogs\Component\Mapper\Traits;
 use ReflectionClass;
 use ReflectionException;
 use Symfony\Component\Finder\Finder;
-use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
 use Vairogs\Component\Mapper\Attribute\Mapped;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Exception\MappingException;
 
 use function array_key_exists;
+use function class_exists;
 use function count;
 use function dirname;
 use function getcwd;
 use function is_object;
 use function sprintf;
 
+use const PHP_SAPI;
+
 trait _MapFromAttribute
 {
+    use _SavedItems;
+
     public function mapFromAttribute(
         object|string $objectOrClass,
         array &$context = [],
+        bool $skipGlobal = false,
     ): ?string {
         $class = (new class {
             use _LoadReflection;
         })->loadReflection($objectOrClass, $context)->getName();
 
-        if (array_key_exists($class, $context[Context::VAIROGS_M_MAP] ??= [])) {
-            return $context[Context::VAIROGS_M_MAP][$class];
+        if (array_key_exists($class, $this->map)) {
+            return $this->saveItem($context[Context::VAIROGS_M_MAP], $this->map[$class], $class);
         }
 
-        if (array_key_exists(Context::VAIROGS_M_MM, $context)) {
-            $foundClasses = $context[Context::VAIROGS_M_MM];
-        } else {
-            $foundClasses = $this->findClassesWithAttribute();
-            $context[Context::VAIROGS_M_MM] = $foundClasses;
+        if (array_key_exists($class, $context[Context::VAIROGS_M_MAP] ?? [])) {
+            return $this->saveItem($this->map, $context[Context::VAIROGS_M_MAP][$class], $class);
         }
 
-        foreach ($foundClasses as $item) {
-            $this->mapMapped($item, $context);
-        }
+        if ($skipGlobal) {
+            if (null !== $this->mappedClasses) {
+                $foundClasses = $context[Context::VAIROGS_M_MCLASSES] = $this->mappedClasses;
+            } elseif (array_key_exists(Context::VAIROGS_M_MCLASSES, $context)) {
+                $foundClasses = $this->mappedClasses = $context[Context::VAIROGS_M_MCLASSES];
+            } else {
+                $foundClasses = $this->mappedClasses = $context[Context::VAIROGS_M_MCLASSES] = $this->findClassesWithAttribute($context);
+            }
 
-        if (array_key_exists($class, $context[Context::VAIROGS_M_MAP] ??= [])) {
-            return $context[Context::VAIROGS_M_MAP][$class];
+            foreach ($foundClasses as $item) {
+                $this->mapMapped($item, $context);
+            }
+
+            if (array_key_exists($class, $context[Context::VAIROGS_M_MAP] ??= [])) {
+                return $context[Context::VAIROGS_M_MAP][$class];
+            }
         }
 
         return $this->mapMapped($objectOrClass, $context);
@@ -66,9 +78,13 @@ trait _MapFromAttribute
             $class = $class::class;
         }
 
-        $addElement = (new class {
-            use _AddElementIfNotExists;
-        });
+        if (array_key_exists($class, $this->map)) {
+            return $this->saveItem($context[Context::VAIROGS_M_MAP], $this->map[$class], $class);
+        }
+
+        if (array_key_exists($class, $context[Context::VAIROGS_M_MAP] ?? [])) {
+            return $this->saveItem($this->map, $context[Context::VAIROGS_M_MAP][$class], $class);
+        }
 
         try {
             $reflection = (new class {
@@ -79,12 +95,14 @@ trait _MapFromAttribute
                 if (1 === count($attributes)) {
                     $attribute = $attributes[0]->newInstance();
 
-                    $addElement->addElementIfNotExists($context[Context::VAIROGS_M_MAP], $attribute->mapsTo, $class);
                     if (null !== $attribute->reverse) {
-                        $addElement->addElementIfNotExists($context[Context::VAIROGS_M_MAP], $attribute->reverse, $attribute->mapsTo);
+                        $this->saveItem($context[Context::VAIROGS_M_MAP], $attribute->reverse, $attribute->mapsTo);
+                        $this->saveItem($this->map, $attribute->reverse, $attribute->mapsTo);
                     }
 
-                    return $context[Context::VAIROGS_M_MAP][$class];
+                    $this->saveItem($context[Context::VAIROGS_M_MAP], $attribute->mapsTo, $class);
+
+                    return $this->saveItem($this->map, $attribute->mapsTo, $class);
                 }
 
                 throw new MappingException(sprintf('More than 1 map for %s', $reflection->getName()));
@@ -96,8 +114,21 @@ trait _MapFromAttribute
         return null;
     }
 
-    protected function findClassesWithAttribute(): array
-    {
+    protected function findClassesWithAttribute(
+        array &$context = [],
+    ): array {
+        if ([] !== $this->files) {
+            $context[Context::VAIROGS_M_FILES] = $this->files;
+
+            return $this->files;
+        }
+
+        if ([] !== ($context[Context::VAIROGS_M_FILES] ?? [])) {
+            $this->files = $context[Context::VAIROGS_M_FILES];
+
+            return $context[Context::VAIROGS_M_FILES];
+        }
+
         $matchingClasses = [];
         $finder = new Finder();
         $dirname = dirname(getcwd());
@@ -119,6 +150,6 @@ trait _MapFromAttribute
             }
         }
 
-        return $matchingClasses;
+        return $context[Context::VAIROGS_M_FILES] = $this->files = $matchingClasses;
     }
 }

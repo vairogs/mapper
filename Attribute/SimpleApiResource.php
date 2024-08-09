@@ -174,7 +174,7 @@ class SimpleApiResource extends ApiResource
                 'normalizationContext' => ['groups' => [$self->getConstant('READ'), ], ],
                 'operations' => array_values($operations),
                 'order' => ['createdAt' => OrderFilterInterface::DIRECTION_DESC, ],
-                'shortName' => (new ReflectionClass($this->mapFromAttribute($callerClass, $ignore)))->getShortName(),
+                'shortName' => (new ReflectionClass($this->mapFromAttribute($callerClass, $ignore, true)))->getShortName(),
                 'provider' => Mapper::class,
                 'processor' => Mapper::class,
             ];

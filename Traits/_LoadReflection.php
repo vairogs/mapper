@@ -14,16 +14,15 @@ namespace Vairogs\Component\Mapper\Traits;
 use Doctrine\Persistence\Proxy;
 use ReflectionClass;
 use ReflectionException;
-use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
 use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Exception\MappingException;
 
 use function array_key_exists;
 use function is_object;
-use function sprintf;
 
 trait _LoadReflection
 {
+    use _SavedItems;
+
     /**
      * @throws ReflectionException
      */
@@ -37,30 +36,26 @@ trait _LoadReflection
             $class = $objectOrClass::class;
         }
 
-        if (array_key_exists($class, $context[Context::VAIROGS_M_REF] ??= [])) {
-            return $context[Context::VAIROGS_M_REF][$class];
+        if (array_key_exists($class, $this->reflections)) {
+            return $this->saveItem($context[Context::VAIROGS_M_REF], $this->reflections[$class], $class);
+        }
+
+        if (array_key_exists($class, $context[Context::VAIROGS_M_REF] ?? [])) {
+            return $this->saveItem($this->reflections, $context[Context::VAIROGS_M_REF][$class], $class);
         }
 
         $reflection = new ReflectionClass($objectOrClass);
 
         if ($objectOrClass instanceof Proxy) {
-            $objectOrClass->__load();
-            if (!$objectOrClass->__isInitialized()) {
-                throw new MappingException(sprintf('Un-initialized proxy object for %s', $objectOrClass::class));
-            }
-
             $reflection = $reflection->getParentClass();
         }
 
         $reflectionClass = $reflection->getName();
 
-        $addElement = (new class {
-            use _AddElementIfNotExists;
-        });
+        $this->saveItem($context[Context::VAIROGS_M_REF], $reflection, $class);
+        $this->saveItem($context[Context::VAIROGS_M_REF], $reflection, $reflectionClass);
+        $this->saveItem($this->reflections, $reflection, $reflectionClass);
 
-        $addElement->addElementIfNotExists($context[Context::VAIROGS_M_REF], $reflection, $reflectionClass);
-        $addElement->addElementIfNotExists($context[Context::VAIROGS_M_REF], $reflection, $class);
-
-        return $reflection;
+        return $this->saveItem($this->reflections, $reflection, $class);
     }
 }

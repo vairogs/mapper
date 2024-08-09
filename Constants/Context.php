@@ -21,12 +21,14 @@ use ApiPlatform\Metadata\Put;
 final readonly class Context
 {
     public const string VAIROGS_M_ENTITY_NORMALIZER = 'VAIROGS_M_ENTITY_NORMALIZER';
-    public const string VAIROGS_M_PARENTS = 'VAIROGS_M_PARENTS';
+
     public const string VAIROGS_M_LEVEL = 'VAIROGS_M_LEVEL';
-    public const string VAIROGS_M_REF = 'VAIROGS_M_REF';
     public const string VAIROGS_M_MAP = 'VAIROGS_M_MAP';
+    public const string VAIROGS_M_MCLASSES = 'VAIROGS_M_CLASSES';
+    public const string VAIROGS_M_PARENTS = 'VAIROGS_M_PARENTS';
+    public const string VAIROGS_M_REF = 'VAIROGS_M_REF';
     public const string VAIROGS_M_RP = 'VAIROGS_M_RP';
-    public const string VAIROGS_M_MM = 'VAIROGS_M_MM';
+    public const string VAIROGS_M_FILES = 'VAIROGS_M_FILES';
 
     public const array VAIROGS_M_OP_ALL = [
         Get::class,
