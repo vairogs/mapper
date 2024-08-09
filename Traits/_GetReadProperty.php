@@ -29,7 +29,7 @@ trait _GetReadProperty
         }
 
         $property = null;
-        foreach ((new class() {
+        foreach ((new class {
             use _LoadReflection;
         })->loadReflection($class, $context)->getProperties() as $reflectionProperty) {
             if ([] !== ($attributes = $reflectionProperty->getAttributes(ApiProperty::class))) {
@@ -45,7 +45,7 @@ trait _GetReadProperty
             throw new MappingException("Class $class does not have a read property!");
         }
 
-        (new class() {
+        (new class {
             use _AddElementIfNotExists;
         })->addElementIfNotExists($context[Mapper::VAIROGS_MAPPER_RP], $property, $class);
 

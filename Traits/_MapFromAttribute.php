@@ -23,11 +23,9 @@ trait _MapFromAttribute
         object|string $objectOrClass,
         array &$context = [],
     ): ?string {
-        $class = $objectOrClass;
-
-        if (is_object($objectOrClass)) {
-            $class = $objectOrClass::class;
-        }
+        $class = (new class {
+            use _LoadReflection;
+        })->loadReflection($objectOrClass, $context)->getName();
 
         if (array_key_exists($class, $context[Mapper::VAIROGS_MAPPER_MAP] ??= [])) {
             return $context[Mapper::VAIROGS_MAPPER_MAP][$class];
@@ -59,12 +57,12 @@ trait _MapFromAttribute
             $class = $class::class;
         }
 
-        $addElement = (new class() {
+        $addElement = (new class {
             use _AddElementIfNotExists;
         });
 
         try {
-            $reflection = (new class() {
+            $reflection = (new class {
                 use _LoadReflection;
             })->loadReflection($class, $context);
 
@@ -101,7 +99,7 @@ trait _MapFromAttribute
         $finder->files()->in([$dirname . '/src/Entity', $dirname . '/src/ApiResource'])->name('*.php');
 
         foreach ($finder as $file) {
-            $className = (new class() {
+            $className = (new class {
                 use _GetClassFromFile;
             })->getClassFromFile($file->getRealPath());
             if ($className && class_exists($className)) {

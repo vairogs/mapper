@@ -45,7 +45,7 @@ trait _LoadReflection
 
         $reflectionClass = $reflection->getName();
 
-        $addElement = (new class() {
+        $addElement = (new class {
             use _AddElementIfNotExists;
         });
 

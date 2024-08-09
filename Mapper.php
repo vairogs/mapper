@@ -207,7 +207,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             return null; // TODO: config to throw or return | ^ ? <
         }
 
-        (new class() {
+        (new class {
             use Iteration\_AddElementIfNotExists;
         })->addElementIfNotExists($context[self::VAIROGS_MAPPER_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $context), $targetResourceClass);
 
@@ -281,7 +281,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
                     continue;
                 }
 
-                $commonElements = (new class() {
+                $commonElements = (new class {
                     use Iteration\_HaveCommonElements;
                 });
 
@@ -337,7 +337,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $this->setResourceProperty($output, $propertyName, $propertyValue, context: $context);
         }
 
-        $addElement = (new class() {
+        $addElement = (new class {
             use Iteration\_AddElementIfNotExists;
         });
 

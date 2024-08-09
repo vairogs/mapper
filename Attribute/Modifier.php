@@ -42,7 +42,7 @@ class Modifier
             }
             $code = str_replace('$value', var_export($value, true), $expression);
 
-            if (null !== $object || (new class() {
+            if (null !== $object || (new class {
                 use _Exists;
             })->exists($target)) {
                 if (str_contains($expression, '->')) {
