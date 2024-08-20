@@ -16,7 +16,6 @@ use ReflectionClass;
 use ReflectionException;
 use Vairogs\Component\Mapper\Constants\Context;
 
-use function array_key_exists;
 use function is_object;
 
 trait _LoadReflection
@@ -36,12 +35,13 @@ trait _LoadReflection
             $class = $objectOrClass::class;
         }
 
-        if (array_key_exists($class, $this->reflections)) {
-            return $this->saveItem($context[Context::VAIROGS_M_REF], $this->reflections[$class], $class);
+        if ('999' !== ($found = $this->reflections[$class] ?? '999')) {
+            return $this->saveItem($context[Context::VAIROGS_M_REF], $found, $class);
         }
+        unset($found);
 
-        if (array_key_exists($class, $context[Context::VAIROGS_M_REF] ?? [])) {
-            return $this->saveItem($this->reflections, $context[Context::VAIROGS_M_REF][$class], $class);
+        if ('999' !== ($found = $context[Context::VAIROGS_M_REF][$class] ?? '999')) {
+            return $this->saveItem($this->reflections, $found, $class);
         }
 
         $reflection = new ReflectionClass($objectOrClass);

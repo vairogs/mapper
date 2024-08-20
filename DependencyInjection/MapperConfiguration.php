@@ -17,7 +17,6 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Vairogs\Bundle\DependencyInjection\AbstractDependencyConfiguration;
 use Vairogs\Bundle\VairogsBundle;
 
-use function dirname;
 use function sprintf;
 
 final class MapperConfiguration extends AbstractDependencyConfiguration
@@ -48,14 +47,14 @@ final class MapperConfiguration extends AbstractDependencyConfiguration
         ContainerBuilder $builder,
         string $component,
     ): void {
-        $container->import(dirname(__DIR__) . '/Resources/config/services.php');
+        $container->import(__DIR__ . '/../Resources/config/services.php');
 
         if (VairogsBundle::p($builder, $component, 'voters.role_voter')) {
-            $container->import(dirname(__DIR__) . '/Resources/config/voters/role.php');
+            $container->import(__DIR__ . '/../Resources/config/voters/role.php');
         }
 
         if (VairogsBundle::p($builder, $component, 'voters.operation_voter')) {
-            $container->import(dirname(__DIR__) . '/Resources/config/voters/operation.php');
+            $container->import(__DIR__ . '/../Resources/config/voters/operation.php');
         }
     }
 

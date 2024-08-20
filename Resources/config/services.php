@@ -20,6 +20,6 @@ return static function (
         ->autowire()
         ->autoconfigure();
 
-    $services->load(namespace: 'Vairogs\\Component\\Mapper\\', resource: dirname(__DIR__, 2) . '/*')
-        ->exclude(excludes: [dirname(__DIR__, 2) . '/{Entity,Resources,Exception,Voter}']);
+    $services->load(namespace: 'Vairogs\\Component\\Mapper\\', resource: __DIR__ . '/../../*')
+        ->exclude(excludes: [__DIR__ . '/../../{Entity,Resources,Exception,Voter}']);
 };

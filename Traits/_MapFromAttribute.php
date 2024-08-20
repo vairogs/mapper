@@ -14,6 +14,7 @@ namespace Vairogs\Component\Mapper\Traits;
 use ReflectionClass;
 use ReflectionException;
 use Symfony\Component\Finder\Finder;
+use Vairogs\Component\Functions\Local\_GetClassFromFile;
 use Vairogs\Component\Mapper\Attribute\Mapped;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Exception\MappingException;
@@ -41,12 +42,8 @@ trait _MapFromAttribute
             use _LoadReflection;
         })->loadReflection($objectOrClass, $context)->getName();
 
-        if (array_key_exists($class, $this->map)) {
-            return $this->saveItem($context[Context::VAIROGS_M_MAP], $this->map[$class], $class);
-        }
-
-        if (array_key_exists($class, $context[Context::VAIROGS_M_MAP] ?? [])) {
-            return $this->saveItem($this->map, $context[Context::VAIROGS_M_MAP][$class], $class);
+        if (null !== ($found = $this->checkMap($class))) {
+            return $found;
         }
 
         if ($skipGlobal) {
@@ -70,6 +67,45 @@ trait _MapFromAttribute
         return $this->mapMapped($objectOrClass, $context);
     }
 
+    protected function findClassesWithAttribute(
+        array &$context = [],
+    ): array {
+        if ([] !== $this->files) {
+            $context[Context::VAIROGS_M_FILES] = $this->files;
+
+            return $this->files;
+        }
+
+        if ([] !== ($context[Context::VAIROGS_M_FILES] ?? [])) {
+            $this->files = $context[Context::VAIROGS_M_FILES];
+
+            return $context[Context::VAIROGS_M_FILES];
+        }
+
+        $matchingClasses = [];
+        $finder = new Finder();
+        $dirname = dirname(getcwd());
+        if ('cli' === PHP_SAPI) {
+            $dirname = getcwd();
+        }
+
+        $finder->files()->in([$dirname . '/src/ApiResource', $dirname . '/src/Entity'])->name('*.php');
+
+        foreach ($finder as $file) {
+            $className = (new class {
+                use _GetClassFromFile;
+            })->getClassFromFile($file->getRealPath());
+            if ($className && class_exists($className)) {
+                $attributes = (new ReflectionClass($className))->getAttributes(Mapped::class);
+                if (!empty($attributes)) {
+                    $matchingClasses[] = $className;
+                }
+            }
+        }
+
+        return $context[Context::VAIROGS_M_FILES] = $this->files = $matchingClasses;
+    }
+
     protected function mapMapped(
         object|string $class,
         array &$context = [],
@@ -78,12 +114,8 @@ trait _MapFromAttribute
             $class = $class::class;
         }
 
-        if (array_key_exists($class, $this->map)) {
-            return $this->saveItem($context[Context::VAIROGS_M_MAP], $this->map[$class], $class);
-        }
-
-        if (array_key_exists($class, $context[Context::VAIROGS_M_MAP] ?? [])) {
-            return $this->saveItem($this->map, $context[Context::VAIROGS_M_MAP][$class], $class);
+        if (null !== ($found = $this->checkMap($class))) {
+            return $found;
         }
 
         try {
@@ -114,42 +146,18 @@ trait _MapFromAttribute
         return null;
     }
 
-    protected function findClassesWithAttribute(
-        array &$context = [],
-    ): array {
-        if ([] !== $this->files) {
-            $context[Context::VAIROGS_M_FILES] = $this->files;
+    private function checkMap(
+        string $class,
+    ): ?string {
+        if ('999' !== ($found = $this->map[$class] ?? '999')) {
+            return $this->saveItem($context[Context::VAIROGS_M_MAP], $found, $class);
+        }
+        unset($found);
 
-            return $this->files;
+        if ('999' !== ($found = $context[Context::VAIROGS_M_MAP][$class] ?? '999')) {
+            return $this->saveItem($this->map, $found, $class);
         }
 
-        if ([] !== ($context[Context::VAIROGS_M_FILES] ?? [])) {
-            $this->files = $context[Context::VAIROGS_M_FILES];
-
-            return $context[Context::VAIROGS_M_FILES];
-        }
-
-        $matchingClasses = [];
-        $finder = new Finder();
-        $dirname = dirname(getcwd());
-        if ('cli' === PHP_SAPI) {
-            $dirname = getcwd();
-        }
-
-        $finder->files()->in([$dirname . '/src/Entity', $dirname . '/src/ApiResource'])->name('*.php');
-
-        foreach ($finder as $file) {
-            $className = (new class {
-                use _GetClassFromFile;
-            })->getClassFromFile($file->getRealPath());
-            if ($className && class_exists($className)) {
-                $attributes = (new ReflectionClass($className))->getAttributes(Mapped::class);
-                if (!empty($attributes)) {
-                    $matchingClasses[] = $className;
-                }
-            }
-        }
-
-        return $context[Context::VAIROGS_M_FILES] = $this->files = $matchingClasses;
+        return null;
     }
 }

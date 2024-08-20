@@ -21,10 +21,8 @@ use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
-use function array_key_exists;
 use function array_merge;
 use function in_array;
-use function property_exists;
 
 #[Autoconfigure(lazy: true)]
 class OperationRoleVoter extends Voter
@@ -42,8 +40,8 @@ class OperationRoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        if (property_exists($this->mapper, 'supportOperation') && array_key_exists($subject, $this->mapper->supportOperation)) {
-            return $this->mapper->supportOperation[$subject];
+        if ('999' !== ($found = $this->mapper->supportOperation[$subject] ?? '999')) {
+            return $found;
         }
 
         $result = false;
@@ -72,8 +70,8 @@ class OperationRoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        if (property_exists($this->mapper, 'allowedOperation') && array_key_exists($subject, $this->mapper->allowedOperation)) {
-            return $this->mapper->allowedOperation[$subject];
+        if ('999' !== ($found = $this->mapper->allowedOperation[$subject] ?? '999')) {
+            return $found;
         }
 
         $reflection = $this->mapper->loadReflection($subject);

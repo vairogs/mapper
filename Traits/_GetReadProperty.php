@@ -16,7 +16,6 @@ use ReflectionException;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Exception\MappingException;
 
-use function array_key_exists;
 use function is_object;
 
 trait _GetReadProperty
@@ -34,12 +33,13 @@ trait _GetReadProperty
             $class = $class::class;
         }
 
-        if (array_key_exists($class, $this->rps)) {
-            return $this->saveItem($context[Context::VAIROGS_M_RP], $this->rps[$class], $class);
+        if ('999' !== ($found = $this->rps[$class] ?? '999')) {
+            return $this->saveItem($context[Context::VAIROGS_M_RP], $found, $class);
         }
+        unset($found);
 
-        if (array_key_exists($class, $context[Context::VAIROGS_M_RP] ?? [])) {
-            return $this->saveItem($this->rps, $context[Context::VAIROGS_M_RP][$class], $class);
+        if ('999' !== ($found = $context[Context::VAIROGS_M_RP][$class] ?? '999')) {
+            return $this->saveItem($this->rps, $found, $class);
         }
 
         $property = null;

@@ -12,6 +12,7 @@
 namespace Vairogs\Component\Mapper\Attribute;
 
 use ApiPlatform\Doctrine\Common\Filter\OrderFilterInterface;
+use ApiPlatform\Doctrine\Orm\Filter\FilterInterface;
 use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Delete;
 use ApiPlatform\Metadata\Get;
@@ -21,21 +22,24 @@ use ApiPlatform\Metadata\Parameters;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
-use ApiPlatform\OpenApi\Model\Operation as OpenApiOperation;
+use ApiPlatform\OpenApi\Model\Operation;
 use ApiPlatform\State\OptionsInterface;
 use Attribute;
-use ReflectionClass;
 use ReflectionException;
 use Stringable;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Finder\Finder;
+use Vairogs\Component\Functions\Local\_GetClassFromFile;
 use Vairogs\Component\Mapper\Mapper;
-use Vairogs\Component\Mapper\Traits\_GetClassFromFile;
 use Vairogs\Component\Mapper\Traits\_GetReadProperty;
+use Vairogs\Component\Mapper\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
 use function array_merge;
+use function array_unique;
 use function array_values;
+use function class_exists;
 use function debug_backtrace;
 use function func_get_args;
 use function is_array;
@@ -46,6 +50,7 @@ class SimpleApiResource extends ApiResource
 {
     use _GetClassFromFile;
     use _GetReadProperty;
+    use _LoadReflection;
     use _MapFromAttribute;
 
     public function __construct(
@@ -79,7 +84,7 @@ class SimpleApiResource extends ApiResource
         ?array $denormalizationContext = null,
         ?bool $collectDenormalizationErrors = null,
         ?array $hydraContext = null,
-        OpenApiOperation|bool|null $openapi = null,
+        Operation|bool|null $openapi = null,
         ?array $validationContext = null,
         ?array $filters = null,
         ?bool $elasticsearch = null,
@@ -118,16 +123,17 @@ class SimpleApiResource extends ApiResource
         mixed $rules = null,
         array|Parameters|null $parameters = null,
         array $extraProperties = [],
-        array|bool|null $simplify = null,
+        array $simplify = [],
     ) {
         $callerClass = $this->getClassFromFile(file: debug_backtrace()[0]['file'] ?? null);
         $attributes = null;
+        $ignore = [];
 
         try {
-            $self = new ReflectionClass(objectOrClass: $callerClass);
+            $self = $this->loadReflection(objectOrClass: $callerClass, context: $ignore);
 
             $attributes = $self->getAttributes(name: self::class)[0]->getArguments();
-            $current = (new ReflectionClass(objectOrClass: __CLASS__))->getMethod(name: __FUNCTION__);
+            $current = $this->loadReflection(objectOrClass: __CLASS__, context: $ignore)->getMethod(name: __FUNCTION__);
             $i = $a = 0;
             $args = func_get_args();
 
@@ -137,7 +143,6 @@ class SimpleApiResource extends ApiResource
                 $a++;
             }
 
-            $ignore = [];
             $readProperty = $this->getReadProperty($self->getName(), $ignore);
 
             $uriVariables = null;
@@ -163,24 +168,38 @@ class SimpleApiResource extends ApiResource
                 GetCollection::class => $collection,
             ];
 
-            if (is_array($simplify) && array_key_exists('unset', $simplify) && is_array($simplify['unset'])) {
-                foreach ($simplify['unset'] as $unset) {
-                    unset($operations[$unset]);
+            foreach ($simplify['unset']['operations'] ?? [] as $unset) {
+                unset($operations[$unset]);
+            }
+
+            $finder = new Finder();
+            $finder->files()->in(__DIR__ . '/../Filter/Resource/')->name('*.php');
+            $files = [];
+            foreach ($finder as $file) {
+                $className = $this->getClassFromFile($file->getRealPath());
+                if ($className && class_exists($className)) {
+                    $reflection = $this->loadReflection($className, $ignore);
+                    if ($reflection->implementsInterface(FilterInterface::class)) {
+                        $files[] = $reflection->getName();
+                    }
                 }
             }
+
+            $filters = array_unique(array_merge($filters ?? [], $files));
 
             $defaults = [
                 'denormalizationContext' => ['groups' => [$self->getConstant('WRITE'), ], ],
                 'normalizationContext' => ['groups' => [$self->getConstant('READ'), ], ],
                 'operations' => array_values($operations),
                 'order' => ['createdAt' => OrderFilterInterface::DIRECTION_DESC, ],
-                'shortName' => (new ReflectionClass($this->mapFromAttribute($callerClass, $ignore, true)))->getShortName(),
+                'shortName' => $this->loadReflection($this->mapFromAttribute($callerClass, $ignore, true), $ignore)->getShortName(),
                 'provider' => Mapper::class,
                 'processor' => Mapper::class,
+                'filters' => $filters,
             ];
 
             foreach ($defaults as $dKey => $dValue) {
-                if ('operations' === $dKey && is_array($args[$named[$dKey]])) {
+                if ('operations' === $dKey && is_array($args[$named[$dKey]] ?? null)) {
                     $existing = $args[$named[$dKey]];
                     if ([] === $existing) {
                         $args[$named[$dKey]] = array_merge($existing, $defaults['operations']);
@@ -188,7 +207,7 @@ class SimpleApiResource extends ApiResource
                     }
 
                     foreach ($existing as $op) {
-                        $opAttribute = new ReflectionClass($op);
+                        $opAttribute = $this->loadReflection($op, $ignore);
                         if (null === $opAttribute->newInstance()->getName()) {
                             unset($operations[$op::class]);
                         }
@@ -198,13 +217,13 @@ class SimpleApiResource extends ApiResource
                     continue;
                 }
 
-                if (null === $args[$named[$dKey]]) {
+                if (null === ($args[$named[$dKey]] ?? null)) {
                     $args[$named[$dKey]] = $dValue;
                 }
             }
 
             foreach ($current->getParameters() as $parameter) {
-                if (isset($args[$i]) && $parameter->getDefaultValue() !== $args[$i]) {
+                if (array_key_exists($i, $args) && $parameter->getDefaultValue() !== $args[$i]) {
                     $attributes[$parameter->getName()] = $args[$i];
                 }
                 $i++;

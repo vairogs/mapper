@@ -39,19 +39,12 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
     ) {
     }
 
-    /**
-     * @throws ReflectionException
-     */
-    public function supportsNormalization(
-        mixed $data,
-        ?string $format = null,
-        array $context = [],
-    ): bool {
-        if (isset($context[Context::VAIROGS_M_ENTITY_NORMALIZER]) || !is_object($data)) {
-            return false;
-        }
-
-        return $this->mapper->isMappedType($data, MappingType::ENTITY, $context);
+    public function getSupportedTypes(
+        ?string $format,
+    ): array {
+        return [
+            'object' => true,
+        ];
     }
 
     /**
@@ -79,11 +72,18 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         return $this->normalizer->normalize($resource, $format, $context);
     }
 
-    public function getSupportedTypes(
-        ?string $format,
-    ): array {
-        return [
-            'object' => true,
-        ];
+    /**
+     * @throws ReflectionException
+     */
+    public function supportsNormalization(
+        mixed $data,
+        ?string $format = null,
+        array $context = [],
+    ): bool {
+        if (array_key_exists(Context::VAIROGS_M_ENTITY_NORMALIZER, $context) || !is_object($data)) {
+            return false;
+        }
+
+        return $this->mapper->isMappedType($data, MappingType::ENTITY, $context);
     }
 }

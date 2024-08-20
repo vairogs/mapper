@@ -31,8 +31,10 @@ class Modifier
         $this->parameters = $parameters;
     }
 
-    public function closure(mixed $value, ?object $object = null): mixed
-    {
+    public function closure(
+        mixed $value,
+        ?object $object = null,
+    ): mixed {
         if (1 === count($this->parameters)) {
             $param = $this->parameters[0];
             if (is_callable($param)) {

@@ -15,15 +15,16 @@ use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
 
 trait _SavedItems
 {
+    public array $allowedOperation = [];
+    public array $allowedRole = [];
     public array $files = [];
     public array $map = [];
     public ?array $mappedClasses = null;
     public array $reflections = [];
+    public array $relations = [];
     public array $rps = [];
     public array $supportOperation = [];
     public array $supportRole = [];
-    public array $allowedOperation = [];
-    public array $allowedRole = [];
 
     public function saveItem(
         ?array &$array,

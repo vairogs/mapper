@@ -21,9 +21,7 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
-use function array_key_exists;
 use function in_array;
-use function property_exists;
 
 #[Autoconfigure(lazy: true)]
 class RoleVoter extends Voter
@@ -41,8 +39,8 @@ class RoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        if (property_exists($this->mapper, 'supportRole') && array_key_exists($subject, $this->mapper->supportRole)) {
-            return $this->mapper->supportRole[$subject];
+        if ('999' !== ($found = $this->mapper->supportRole[$subject] ?? '999')) {
+            return $found;
         }
 
         $reflection = $this->mapper->loadReflection($subject);
@@ -59,8 +57,8 @@ class RoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        if (property_exists($this->mapper, 'allowedRole') && array_key_exists($subject, $this->mapper->allowedRole)) {
-            return $this->mapper->allowedRole[$subject];
+        if ('999' !== ($found = $this->mapper->allowedRole[$subject] ?? '999')) {
+            return $found;
         }
 
         $reflection = $this->mapper->loadReflection($subject);
