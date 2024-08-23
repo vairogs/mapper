@@ -17,6 +17,7 @@ use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
@@ -29,6 +30,7 @@ class OperationRoleVoter extends Voter
 {
     public function __construct(
         private readonly MapperInterface $mapper,
+        private readonly RequestCache $requestCache,
     ) {
     }
 
@@ -40,25 +42,23 @@ class OperationRoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        if ('999' !== ($found = $this->mapper->supportOperation[$subject] ?? '999')) {
-            return $found;
-        }
+        return $this->requestCache->get('supportOperation', $subject, function () use ($subject, $attribute) {
+            $result = false;
+            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
 
-        $result = false;
-        $reflection = $this->mapper->loadReflection($subject);
+            $check = $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
 
-        $check = $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
+            if ($check) {
+                $grantedAttributes = [];
+                foreach ($reflection->getAttributes(GrantedOperation::class) as $grantedAttribute) {
+                    $grantedAttributes[] = $grantedAttribute->newInstance()->operations;
+                }
 
-        if ($check) {
-            $grantedAttributes = [];
-            foreach ($reflection->getAttributes(GrantedOperation::class) as $grantedAttribute) {
-                $grantedAttributes[] = $grantedAttribute->newInstance()->operations;
+                $result = in_array($attribute, array_merge(...$grantedAttributes), true);
             }
 
-            $result = in_array($attribute, array_merge(...$grantedAttributes), true);
-        }
-
-        return $this->mapper->saveItem($this->mapper->supportOperation, $result, $subject);
+            return $result;
+        });
     }
 
     /**
@@ -70,24 +70,22 @@ class OperationRoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        if ('999' !== ($found = $this->mapper->allowedOperation[$subject] ?? '999')) {
-            return $found;
-        }
+        return $this->requestCache->get('allowedOperation', $subject, function () use ($subject, $token) {
+            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
+            $allowedRoles = [];
+            foreach ($reflection->getAttributes(GrantedOperation::class) as $item) {
+                $allowedRoles[] = $item->newInstance()->role;
+            }
 
-        $reflection = $this->mapper->loadReflection($subject);
-        $allowedRoles = [];
-        foreach ($reflection->getAttributes(GrantedOperation::class) as $item) {
-            $allowedRoles[] = $item->newInstance()->role;
-        }
+            if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
+                $result = true;
+            } else {
+                $result = (new class {
+                    use Iteration\_HaveCommonElements;
+                })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
+            }
 
-        if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
-            $result = true;
-        } else {
-            $result = (new class {
-                use Iteration\_HaveCommonElements;
-            })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
-        }
-
-        return $this->mapper->saveItem($this->mapper->allowedOperation, $result, $subject);
+            return $result;
+        });
     }
 }

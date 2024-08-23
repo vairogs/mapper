@@ -15,6 +15,7 @@ use ApiPlatform\Doctrine\Orm\Filter\BooleanFilter;
 use ApiPlatform\Doctrine\Orm\Util\QueryNameGeneratorInterface;
 use ApiPlatform\Metadata\Operation;
 use Doctrine\ORM\QueryBuilder;
+use Psr\Cache\InvalidArgumentException;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
@@ -40,7 +41,7 @@ class ResourceBooleanFilter extends AbstractResourceFilter
             $this->logger,
             $this->properties,
             $this->nameConverter,
-        ))->apply($queryBuilder, $queryNameGenerator, $this->mapper->mapFromAttribute($resourceClass, context: $context, skipGlobal: true), $operation, $context);
+        ))->apply($queryBuilder, $queryNameGenerator, $this->mapper->mapFromAttribute($resourceClass, $this->requestCache, skipGlobal: true), $operation, $context);
     }
 
     public function getDescription(
@@ -66,6 +67,7 @@ class ResourceBooleanFilter extends AbstractResourceFilter
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     public function getPropertiesForType(
         string $resourceClass,

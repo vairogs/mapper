@@ -16,7 +16,7 @@ use ApiPlatform\Metadata\Operation;
 use Doctrine\ORM\Mapping\ManyToMany;
 use Doctrine\ORM\Mapping\OneToMany;
 use Doctrine\ORM\QueryBuilder;
-use ReflectionClass;
+use Psr\Cache\InvalidArgumentException;
 use ReflectionException;
 use ReflectionProperty;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
@@ -45,11 +45,12 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         (new ORMValueInFilter(
             $this->managerRegistry,
+            $this->requestCache,
             $this->logger,
             $this->properties,
             $this->nameConverter,
             $this->mapper,
-        ))->apply($queryBuilder, $queryNameGenerator, $this->mapper->mapFromAttribute($resourceClass, $context), $operation, $context);
+        ))->apply($queryBuilder, $queryNameGenerator, $this->mapper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
     }
 
     public function getDescription(
@@ -80,14 +81,15 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     public function getPropertiesForType(
         string $resourceClass,
     ): array {
-        $filtered = $i = [];
+        $filtered = [];
         foreach ($this->getProperties($resourceClass) as $type => $items) {
-            if ($this->mapper->isMappedType($type, MappingType::RESOURCE, $i)) {
-                $rp = $this->mapper->getReadProperty($type, $i);
+            if ($this->mapper->isMappedType($type, MappingType::RESOURCE)) {
+                $rp = $this->mapper->getReadProperty($type, $this->requestCache);
                 foreach ($items as $item => $unused) {
                     $filtered[] = [$name = $item . '.' . $rp => $name];
                 }
@@ -96,12 +98,12 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
             if ('array' === $type) {
                 foreach ($items as $item => $property) {
-                    $rev = $this->mapper->mapFromAttribute($resourceClass, $i);
-                    $pp = $this->mapper->loadReflection($rev, $i)->getProperty($item);
+                    $rev = $this->mapper->mapFromAttribute($resourceClass, $this->requestCache);
+                    $pp = $this->mapper->loadReflection($rev, $this->requestCache)->getProperty($item);
                     $orm = array_merge_recursive($pp->getAttributes(ManyToMany::class), $pp->getAttributes(OneToMany::class));
-                    if ([] !== $orm) {
-                        $colRef = new ReflectionClass($this->mapper->mapFromAttribute($orm[0]->getArguments()['targetEntity'], $i));
-                        $rp = $this->mapper->getReadProperty($colRef->getName(), $i);
+                    if ([] !== $orm && $this->mapper->isMapped($targetEntity = $orm[0]->getArguments()['targetEntity'])) {
+                        $colRef = $this->mapper->loadReflection($this->mapper->mapFromAttribute($targetEntity, $this->requestCache), $this->requestCache);
+                        $rp = $this->mapper->getReadProperty($colRef->getName(), $this->requestCache);
                         $filtered[] = [$name = $item . '.' . $rp => $name];
                     }
                 }

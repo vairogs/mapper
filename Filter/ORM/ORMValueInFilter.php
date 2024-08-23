@@ -28,6 +28,7 @@ use ReflectionNamedType;
 use ReflectionProperty;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\Enum\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
@@ -43,6 +44,7 @@ class ORMValueInFilter extends AbstractFilter
 {
     public function __construct(
         ManagerRegistry $managerRegistry,
+        private readonly RequestCache $requestCache,
         ?LoggerInterface $logger = null,
         ?array $properties = null,
         ?NameConverterInterface $nameConverter = null,
@@ -87,7 +89,7 @@ class ORMValueInFilter extends AbstractFilter
 
             $values = explode(',', $filterValue);
 
-            $reflection = $this->mapper->loadReflection($resourceClass, $context);
+            $reflection = $this->mapper->loadReflection($resourceClass, $this->requestCache);
 
             if ('m' !== $alias) {
                 $exp = explode('.', $property, 2);
@@ -97,21 +99,21 @@ class ORMValueInFilter extends AbstractFilter
                 }
 
                 if ($this->mapper->isMappedType($typeAlias->getName(), MappingType::ENTITY, $context)) {
-                    $reflection = $this->mapper->loadReflection($typeAlias->getName(), $context);
+                    $reflection = $this->mapper->loadReflection($typeAlias->getName(), $this->requestCache);
                 }
 
                 if (Collection::class === $typeAlias->getName()) {
                     $orm = array_merge_recursive($prop->getAttributes(ManyToMany::class), $prop->getAttributes(OneToMany::class));
                     if ([] !== $orm) {
-                        $colRef = $this->mapper->loadReflection($this->mapper->mapFromAttribute($orm[0]->getArguments()['targetEntity'], $context));
-                        $reflection = $this->mapper->loadReflection($this->mapper->mapFromAttribute($colRef->getName(), $context), $context);
+                        $colRef = $this->mapper->loadReflection($this->mapper->mapFromAttribute($orm[0]->getArguments()['targetEntity'], $this->requestCache), $this->requestCache);
+                        $reflection = $this->mapper->loadReflection($this->mapper->mapFromAttribute($colRef->getName(), $this->requestCache), $this->requestCache);
                     }
                 }
             }
 
             $propertyType = $reflection->getProperty($field)->getType();
             if (!$propertyType?->isBuiltin()) {
-                $refType = $this->mapper->loadReflection($propertyType?->getName(), $context);
+                $refType = $this->mapper->loadReflection($propertyType?->getName(), $this->requestCache);
 
                 if ($refType->implementsInterface(BackedEnum::class)) {
                     $instance = $reflection->newInstance();

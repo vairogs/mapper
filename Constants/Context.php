@@ -42,11 +42,13 @@ final readonly class Context
     ];
     public const string VAIROGS_M_ENTITY_NORMALIZER = 'VAIROGS_M_ENTITY_NORMALIZER';
 
+    public const string VAIROGS_M_FILES = 'VAIROGS_M_FILES';
+    public const string VAIROGS_M_GET_RP = 'VAIROGS_M_GET_RP';
+    public const string VAIROGS_M_IS_RP = 'VAIROGS_M_IS_RP';
     public const string VAIROGS_M_LEVEL = 'VAIROGS_M_LEVEL';
     public const string VAIROGS_M_MAP = 'VAIROGS_M_MAP';
     public const string VAIROGS_M_MCLASSES = 'VAIROGS_M_CLASSES';
     public const string VAIROGS_M_PARENTS = 'VAIROGS_M_PARENTS';
     public const string VAIROGS_M_REF = 'VAIROGS_M_REF';
     public const string VAIROGS_M_RP = 'VAIROGS_M_RP';
-    public const string VAIROGS_M_FILES = 'VAIROGS_M_FILES';
 }

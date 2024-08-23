@@ -84,6 +84,6 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
             return false;
         }
 
-        return $this->mapper->isMappedType($data, MappingType::ENTITY, $context);
+        return $this->mapper->isMappedType($data, MappingType::ENTITY);
     }
 }

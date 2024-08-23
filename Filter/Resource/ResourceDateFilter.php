@@ -21,6 +21,7 @@ use DateTimeInterface;
 use DateTimeZone;
 use Doctrine\ORM\QueryBuilder;
 use Exception;
+use Psr\Cache\InvalidArgumentException;
 use ReflectionException;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
@@ -57,7 +58,7 @@ class ResourceDateFilter extends AbstractResourceFilter implements DateFilterInt
             $this->logger,
             $this->properties,
             $this->nameConverter,
-        ))->apply($queryBuilder, $queryNameGenerator, $this->mapper->mapFromAttribute($resourceClass, $context), $operation, $context);
+        ))->apply($queryBuilder, $queryNameGenerator, $this->mapper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
     }
 
     public function getDescription(
@@ -81,6 +82,7 @@ class ResourceDateFilter extends AbstractResourceFilter implements DateFilterInt
 
     /**
      * @throws ReflectionException
+     * @throws InvalidArgumentException
      */
     public function getPropertiesForType(
         string $resourceClass,

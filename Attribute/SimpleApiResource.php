@@ -28,7 +28,10 @@ use Attribute;
 use ReflectionException;
 use Stringable;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
+use Symfony\Component\Console\Application;
 use Symfony\Component\Finder\Finder;
+use Symfony\Component\HttpKernel\KernelInterface;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Local\_GetClassFromFile;
 use Vairogs\Component\Mapper\Mapper;
 use Vairogs\Component\Mapper\Traits\_GetReadProperty;
@@ -127,13 +130,21 @@ class SimpleApiResource extends ApiResource
     ) {
         $callerClass = $this->getClassFromFile(file: debug_backtrace()[0]['file'] ?? null);
         $attributes = null;
-        $ignore = [];
+
+        $kernel = null;
+        if (($app = $GLOBALS['app']) instanceof KernelInterface) {
+            $kernel = $app;
+        } elseif ($app instanceof Application) {
+            $kernel = $app->getKernel();
+        }
+
+        $requestCache = null !== $kernel ? $kernel->getContainer()->get(RequestCache::class) : new RequestCache();
 
         try {
-            $self = $this->loadReflection(objectOrClass: $callerClass, context: $ignore);
+            $self = $this->loadReflection(objectOrClass: $callerClass, requestCache: $requestCache);
 
             $attributes = $self->getAttributes(name: self::class)[0]->getArguments();
-            $current = $this->loadReflection(objectOrClass: __CLASS__, context: $ignore)->getMethod(name: __FUNCTION__);
+            $current = $this->loadReflection(objectOrClass: __CLASS__, requestCache: $requestCache)->getMethod(name: __FUNCTION__);
             $i = $a = 0;
             $args = func_get_args();
 
@@ -143,7 +154,7 @@ class SimpleApiResource extends ApiResource
                 $a++;
             }
 
-            $readProperty = $this->getReadProperty($self->getName(), $ignore);
+            $readProperty = $this->getReadProperty($self->getName(), $requestCache);
 
             $uriVariables = null;
             if ('id' !== $readProperty) {
@@ -172,18 +183,22 @@ class SimpleApiResource extends ApiResource
                 unset($operations[$unset]);
             }
 
-            $finder = new Finder();
-            $finder->files()->in(__DIR__ . '/../Filter/Resource/')->name('*.php');
-            $files = [];
-            foreach ($finder as $file) {
-                $className = $this->getClassFromFile($file->getRealPath());
-                if ($className && class_exists($className)) {
-                    $reflection = $this->loadReflection($className, $ignore);
-                    if ($reflection->implementsInterface(FilterInterface::class)) {
-                        $files[] = $reflection->getName();
+            $files = $requestCache->get('resource_files', 'key', function () use ($requestCache) {
+                $finder = new Finder();
+                $finder->files()->in(__DIR__ . '/../Filter/Resource/')->name('*.php');
+                $files = [];
+                foreach ($finder as $file) {
+                    $className = $requestCache->get('resource_files_file', $file->getRealPath(), fn () => $this->getClassFromFile($file->getRealPath()));
+                    if ($className && class_exists($className)) {
+                        $reflection = $this->loadReflection($className, requestCache: $requestCache);
+                        if ($reflection->implementsInterface(FilterInterface::class)) {
+                            $files[] = $reflection->getName();
+                        }
                     }
                 }
-            }
+
+                return $files;
+            });
 
             $filters = array_unique(array_merge($filters ?? [], $files));
 
@@ -192,7 +207,7 @@ class SimpleApiResource extends ApiResource
                 'normalizationContext' => ['groups' => [$self->getConstant('READ'), ], ],
                 'operations' => array_values($operations),
                 'order' => ['createdAt' => OrderFilterInterface::DIRECTION_DESC, ],
-                'shortName' => $this->loadReflection($this->mapFromAttribute($callerClass, $ignore, true), $ignore)->getShortName(),
+                'shortName' => $this->loadReflection($this->mapFromAttribute($callerClass, $requestCache, true), requestCache: $requestCache)->getShortName(),
                 'provider' => Mapper::class,
                 'processor' => Mapper::class,
                 'filters' => $filters,
@@ -207,7 +222,7 @@ class SimpleApiResource extends ApiResource
                     }
 
                     foreach ($existing as $op) {
-                        $opAttribute = $this->loadReflection($op, $ignore);
+                        $opAttribute = $this->loadReflection($op, requestCache: $requestCache);
                         if (null === $opAttribute->newInstance()->getName()) {
                             unset($operations[$op::class]);
                         }

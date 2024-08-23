@@ -13,8 +13,13 @@ namespace Vairogs\Component\Mapper\Filter;
 
 use ApiPlatform\Doctrine\Orm\Filter\FilterInterface;
 use Doctrine\Persistence\ManagerRegistry;
+use Psr\Cache\InvalidArgumentException;
 use Psr\Log\LoggerInterface;
+use ReflectionException;
+use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
+use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
 use function array_key_exists;
@@ -22,11 +27,11 @@ use function array_merge;
 
 abstract class AbstractResourceFilter implements FilterInterface
 {
-    use Traits\_GetProperties;
     use Traits\_PropertyNameNormalizer;
 
     public function __construct(
         protected readonly ManagerRegistry $managerRegistry,
+        protected readonly RequestCache $requestCache,
         protected readonly ?LoggerInterface $logger = null,
         protected ?array $properties = null,
         protected readonly ?NameConverterInterface $nameConverter = null,
@@ -38,11 +43,47 @@ abstract class AbstractResourceFilter implements FilterInterface
         string $resourceClass,
     ): array;
 
+    /**
+     * @throws ReflectionException
+     * @throws InvalidArgumentException
+     */
+    public function getProperties(
+        string $resourceClass,
+    ): array {
+        return $this->requestCache->get('resourceProperties', $resourceClass, function () use ($resourceClass) {
+            $properties = [];
+
+            $save = (new class {
+                use _AddElementIfNotExists;
+            });
+
+            foreach ($this->mapper->loadReflection($resourceClass, $this->requestCache)->getProperties() as $property) {
+                $type = $property->getType();
+                if ($type instanceof ReflectionUnionType) {
+                    continue;
+                }
+
+                $propertyType = $type?->getName();
+                if (null === $propertyType) {
+                    continue;
+                }
+
+                $save->addElementIfNotExists($properties[$propertyType], $property, $property->getName());
+            }
+
+            return $properties;
+        });
+    }
+
     protected function checkApply(
         string $resourceClass,
         array &$context = [],
         bool $early = false,
     ): bool {
+        if ([] === ($context['filters'] ?? []) && !$early) {
+            return false;
+        }
+
         $this->properties = array_merge($this->properties ?? [], $this->getPropertiesForType($resourceClass));
 
         if ([] === $this->properties) {

@@ -18,6 +18,7 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
@@ -28,6 +29,7 @@ class RoleVoter extends Voter
 {
     public function __construct(
         private readonly MapperInterface $mapper,
+        private readonly RequestCache $requestCache,
     ) {
     }
 
@@ -39,13 +41,11 @@ class RoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        if ('999' !== ($found = $this->mapper->supportRole[$subject] ?? '999')) {
-            return $found;
-        }
+        return $this->requestCache->get('supportRole', $subject, function () use ($subject) {
+            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
 
-        $reflection = $this->mapper->loadReflection($subject);
-
-        return $this->mapper->saveItem($this->mapper->supportRole, $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class), $subject);
+            return $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
+        });
     }
 
     /**
@@ -57,24 +57,22 @@ class RoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        if ('999' !== ($found = $this->mapper->allowedRole[$subject] ?? '999')) {
-            return $found;
-        }
+        return $this->requestCache->get('allowedRole', $subject, function () use ($subject, $token) {
+            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
+            $allowedRoles = [];
+            foreach ($reflection->getAttributes(IsGranted::class) as $item) {
+                $allowedRoles[] = $item->newInstance()->attribute;
+            }
 
-        $reflection = $this->mapper->loadReflection($subject);
-        $allowedRoles = [];
-        foreach ($reflection->getAttributes(IsGranted::class) as $item) {
-            $allowedRoles[] = $item->newInstance()->attribute;
-        }
+            if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
+                $result = true;
+            } else {
+                $result = (new class {
+                    use Iteration\_HaveCommonElements;
+                })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
+            }
 
-        if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
-            $result = true;
-        } else {
-            $result = (new class {
-                use Iteration\_HaveCommonElements;
-            })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
-        }
-
-        return $this->mapper->saveItem($this->mapper->allowedRole, $result, $subject);
+            return $result;
+        });
     }
 }

@@ -15,6 +15,7 @@ use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use Doctrine\ORM\Exception\ORMException;
 use ReflectionClass;
 use ReflectionException;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\Enum\MappingType;
 
 interface MapperInterface
@@ -25,7 +26,6 @@ interface MapperInterface
     public function find(
         string $class,
         mixed $id,
-        array &$context = [],
     ): ?object;
 
     /**
@@ -38,7 +38,7 @@ interface MapperInterface
 
     public function getReadProperty(
         object|string $class,
-        array &$context = [],
+        RequestCache $requestCache,
     ): string;
 
     /**
@@ -46,12 +46,10 @@ interface MapperInterface
      */
     public function isEntity(
         object|string $object,
-        array &$context = [],
     ): bool;
 
     public function isMapped(
         object|string $object,
-        array &$context = [],
     ): bool;
 
     /**
@@ -60,7 +58,6 @@ interface MapperInterface
     public function isMappedType(
         string|object $objectOrClass,
         MappingType $type,
-        array &$context = [],
     ): bool;
 
     /**
@@ -68,7 +65,6 @@ interface MapperInterface
      */
     public function isResource(
         object|string $object,
-        array &$context = [],
     ): bool;
 
     /**
@@ -76,20 +72,14 @@ interface MapperInterface
      */
     public function loadReflection(
         object|string $objectOrClass,
-        array &$context = [],
+        RequestCache $requestCache,
     ): ReflectionClass;
 
     public function mapFromAttribute(
         object|string $objectOrClass,
-        array &$context = [],
+        RequestCache $requestCache,
         bool $skipGlobal = false,
     ): ?string;
-
-    public function saveItem(
-        ?array &$array,
-        mixed $element,
-        mixed $key = null,
-    ): mixed;
 
     /**
      * @throws ReflectionException
@@ -97,7 +87,7 @@ interface MapperInterface
      */
     public function toEntity(
         object $object,
-        array &$context = [],
+        array $context = [],
         ?object $existingEntity = null,
     ): ?object;
 
@@ -108,6 +98,6 @@ interface MapperInterface
      */
     public function toResource(
         ?object $object,
-        array &$context = [],
+        array $context = [],
     ): ?object;
 }

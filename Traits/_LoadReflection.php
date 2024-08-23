@@ -14,20 +14,19 @@ namespace Vairogs\Component\Mapper\Traits;
 use Doctrine\Persistence\Proxy;
 use ReflectionClass;
 use ReflectionException;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\Context;
 
 use function is_object;
 
 trait _LoadReflection
 {
-    use _SavedItems;
-
     /**
      * @throws ReflectionException
      */
     public function loadReflection(
         object|string $objectOrClass,
-        array &$context = [],
+        RequestCache $requestCache,
     ): ReflectionClass {
         $class = $objectOrClass;
 
@@ -35,27 +34,18 @@ trait _LoadReflection
             $class = $objectOrClass::class;
         }
 
-        if ('999' !== ($found = $this->reflections[$class] ?? '999')) {
-            return $this->saveItem($context[Context::VAIROGS_M_REF], $found, $class);
-        }
-        unset($found);
+        $reflection = $requestCache->get(Context::VAIROGS_M_REF, $class, static function () use ($objectOrClass) {
+            $reflection = new ReflectionClass($objectOrClass);
 
-        if ('999' !== ($found = $context[Context::VAIROGS_M_REF][$class] ?? '999')) {
-            return $this->saveItem($this->reflections, $found, $class);
-        }
+            if ($objectOrClass instanceof Proxy) {
+                $reflection = $reflection->getParentClass();
+            }
 
-        $reflection = new ReflectionClass($objectOrClass);
+            return $reflection;
+        });
 
-        if ($objectOrClass instanceof Proxy) {
-            $reflection = $reflection->getParentClass();
-        }
+        $requestCache->get(Context::VAIROGS_M_REF, $reflection->getName(), static fn () => $reflection);
 
-        $reflectionClass = $reflection->getName();
-
-        $this->saveItem($context[Context::VAIROGS_M_REF], $reflection, $class);
-        $this->saveItem($context[Context::VAIROGS_M_REF], $reflection, $reflectionClass);
-        $this->saveItem($this->reflections, $reflection, $reflectionClass);
-
-        return $this->saveItem($this->reflections, $reflection, $class);
+        return $reflection;
     }
 }
