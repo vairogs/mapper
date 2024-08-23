@@ -13,7 +13,6 @@ namespace Vairogs\Component\Mapper\Filter;
 
 use ApiPlatform\Doctrine\Orm\Filter\FilterInterface;
 use Doctrine\Persistence\ManagerRegistry;
-use Psr\Cache\InvalidArgumentException;
 use Psr\Log\LoggerInterface;
 use ReflectionException;
 use ReflectionUnionType;
@@ -45,7 +44,6 @@ abstract class AbstractResourceFilter implements FilterInterface
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     public function getProperties(
         string $resourceClass,
