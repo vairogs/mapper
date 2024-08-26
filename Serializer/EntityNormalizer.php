@@ -22,6 +22,7 @@ use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Vairogs\Bundle\Constants\Context;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
@@ -36,6 +37,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
 
     public function __construct(
         private readonly MapperInterface $mapper,
+        private readonly RequestCache $requestCache,
     ) {
     }
 
@@ -58,16 +60,8 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         ?string $format = null,
         array $context = [],
     ): float|array|ArrayObject|bool|int|string|null {
-        if (
-            array_key_exists($data::class, $this->mapper->alreadyMapped)
-            && array_key_exists($data->getId(), $this->mapper->alreadyMapped[$data::class])
-        ) {
-            return $this->mapper->alreadyMapped[$data::class][$data->getId()];
-        }
-
-        $resource = $this->mapper->toResource($data, $context);
+        $resource = $this->requestCache->get(Context::ALREADY_NORMALIZED, $data::class, fn () => $this->mapper->toResource($data, $context), (string) $data->getId());
         $context[Context::ENTITY_NORMALIZER->value] = true;
-        $this->mapper->alreadyMapped[$data::class][$data->getId()] = $resource;
 
         return $this->normalizer->normalize($resource, $format, $context);
     }

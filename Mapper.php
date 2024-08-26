@@ -108,11 +108,8 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     use _GetReadProperty;
     use _MapFromAttribute;
 
-    public array $alreadyMapped = [];
-
     protected array $allowedFields = [];
     protected readonly PropertyAccessor $accessor;
-    protected readonly PhpDocExtractor $phpDocExtractor;
 
     public function __construct(
         protected readonly EntityManagerInterface $entityManager,
@@ -124,14 +121,13 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         protected readonly Serializer\SerializerInterface $serializer,
         protected readonly SerializerContextBuilderInterface $serializerContextBuilder,
         protected readonly RequestCache $requestCache,
+        protected readonly ?HubInterface $hub = null,
         #[AutowireIterator(
             'api_platform.doctrine.orm.query_extension.collection',
         )]
         protected readonly iterable $collectionExtensions = [],
-        protected readonly ?HubInterface $hub = null,
     ) {
         $this->accessor = PropertyAccess::createPropertyAccessor();
-        $this->phpDocExtractor = new PhpDocExtractor();
     }
 
     /**
@@ -184,18 +180,27 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     }
 
     public function findRelationName(
+        string $propertyName,
         string $sourceClass,
         string $targetClass,
     ): ?string {
-        $associations = $this->entityManager->getClassMetadata($sourceClass)->getAssociationMappings();
+        return $this->requestCache->get(Context::RELATION_NAME, $sourceClass . '/' . $propertyName, function () use ($sourceClass, $targetClass, $propertyName) {
+            $associations = $this->entityManager->getClassMetadata($sourceClass)->getAssociationMappings();
 
-        foreach ($associations as $fieldName => $association) {
-            if ($association['targetEntity'] === $targetClass) {
-                return $fieldName;
+            $matches = [];
+            $i = 0;
+            foreach ($associations as $fieldName => $association) {
+                if ($association['targetEntity'] === $targetClass) {
+                    $matches[$association['inversedBy'] ?? $i++] = $fieldName;
+                }
             }
-        }
 
-        return null;
+            if (1 === count($matches)) {
+                return reset($matches);
+            }
+
+            return $matches[$propertyName] ?? null;
+        });
     }
 
     /**
@@ -506,7 +511,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
 
         $reflection = $this->loadReflection($object, $this->requestCache);
 
-        if ('999' !== ($found = $this->alreadyMapped[$reflection->getName()][$object->getId()] ?? '999')) {
+        if (999 !== ($found = $this->requestCache->getValue(Context::ALREADY_NORMALIZED, $reflection->getName(), 999, (string) $object->getId()))) {
             return $found;
         }
         unset($found);
@@ -519,9 +524,15 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             return null; // TODO: config to throw or return | ^ ? <
         }
 
-        (new class {
-            use Iteration\_AddElementIfNotExists;
-        })->addElementIfNotExists($context[Context::MAPPER_PARENTS->value], $targetResourceClass = $this->mapFromAttribute($object, $this->requestCache), $targetResourceClass);
+        static $_helper = null;
+        if (null === $_helper) {
+            $_helper = new class {
+                use Iteration\_AddElementIfNotExists;
+                use Iteration\_HaveCommonElements;
+            };
+        }
+
+        $_helper->addElementIfNotExists($context[Context::MAPPER_PARENTS->value], $targetResourceClass = $this->mapFromAttribute($object, $this->requestCache), $targetResourceClass);
 
         $operation = $context['operation'] ?? $context['root_operation'] ?? ($context['request'] ?? null)?->attributes->get('_api_operation');
         if (is_object($operation)) {
@@ -601,39 +612,39 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
                     continue;
                 }
 
-                $commonElements = (new class {
-                    use Iteration\_HaveCommonElements;
-                });
-
                 $open = false;
                 $att = $this->getApiResource($targetClass)->newInstance();
                 $ref = (new ReflectionClass($att))->getProperty('normalizationContext')->getValue($att);
-                if ($commonElements->haveCommonElements($context['groups'], $ref['groups'])) {
+                if ($_helper->haveCommonElements($context['groups'], $ref['groups'])) {
                     $open = true;
                 }
 
                 $resource = new $targetClass();
                 if (Collection::class === $propertyType) {
+                    if (0 === $propertyValue->count()) {
+                        continue;
+                    }
+
                     if (!$open) {
                         $rp = $this->getReadProperty($resource, $this->requestCache);
 
-                        $relationName = $this->findRelationName($propertyValue->getTypeClass()->getName(), $this->loadReflection($object, $this->requestCache)->getName());
+                        $relationName = $this->findRelationName($propertyName, $propertyValue->getTypeClass()->getName(), $this->loadReflection($object, $this->requestCache)->getName());
                         $qb = $this->entityManager->getRepository($propertyValue->getTypeClass()->getName())->createQueryBuilder('e')
                             ->select(sprintf('e.%s', $rp));
 
                         if (null === $relationName) {
                             $qb
                                 ->innerJoin($object::class, 'r', Join::WITH, 'r.id = :relation')
-                                ->innerJoin('r.dataItems', 'j', Join::WITH, 'j.id = e.id')
-                                ->setParameter('relation', $object->getId());
+                                ->innerJoin('r.dataItems', 'j', Join::WITH, 'j.id = e.id');
                         } else {
                             $qb
-                                ->where(sprintf('e.%s = :relation', $relationName))
-                                ->setParameter('relation', $object);
+                                ->where(sprintf('e.%s = :relation', $relationName));
                         }
 
                         $rps = $qb
+                            ->setParameter('relation', $object->getId())
                             ->getQuery()
+                            ->useQueryCache(true)
                             ->getSingleColumnResult();
 
                         foreach ($rps as $key) {
@@ -665,11 +676,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $this->setResourceProperty($output, $propertyName, $propertyValue, context: $context);
         }
 
-        $addElement = (new class {
-            use Iteration\_AddElementIfNotExists;
-        });
-
-        $addElement->addElementIfNotExists($this->alreadyMapped[$reflection->getName()], $output, $object->getId());
+        $this->requestCache->get(Context::ALREADY_NORMALIZED, $reflection->getName(), static fn () => $output, (string) $object->getId());
 
         return $output;
     }
@@ -946,7 +953,12 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         string $propertyName,
         bool $returnType = false,
     ): bool|string|null {
-        $type = $this->phpDocExtractor->getType($object::class, $propertyName);
+        static $phpDoc = null;
+        if (null === $phpDoc) {
+            $phpDoc = new PhpDocExtractor();
+        }
+
+        $type = $phpDoc->getType($object::class, $propertyName);
         $result = null;
 
         if (null !== $type) {
