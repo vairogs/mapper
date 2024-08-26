@@ -17,10 +17,12 @@ use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
+use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function array_merge;
 use function in_array;
@@ -42,9 +44,11 @@ class OperationRoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        return $this->requestCache->get('supportOperation', $subject, function () use ($subject, $attribute) {
+        return $this->requestCache->get(Context::SUPPORT_OPERATION, $subject, function () use ($subject, $attribute) {
             $result = false;
-            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
+            $reflection = (new class {
+                use _LoadReflection;
+            })->loadReflection($subject, $this->requestCache);
 
             $check = $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
 
@@ -70,8 +74,10 @@ class OperationRoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        return $this->requestCache->get('allowedOperation', $subject, function () use ($subject, $token) {
-            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
+        return $this->requestCache->get(Context::ALLOW_OPERATION, $subject, function () use ($subject, $token) {
+            $reflection = (new class {
+                use _LoadReflection;
+            })->loadReflection($subject, $this->requestCache);
             $allowedRoles = [];
             foreach ($reflection->getAttributes(GrantedOperation::class) as $item) {
                 $allowedRoles[] = $item->newInstance()->role;

@@ -9,7 +9,7 @@
  * file that was distributed with this source code.
  */
 
-namespace Vairogs\Component\Mapper\Constants\Enum;
+namespace Vairogs\Component\Mapper\Constants;
 
 enum MappingType
 {

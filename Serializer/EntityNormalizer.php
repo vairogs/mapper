@@ -21,8 +21,8 @@ use Symfony\Component\Serializer\Exception\ExceptionInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
-use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Constants\Enum\MappingType;
+use Vairogs\Bundle\Constants\Context;
+use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
 use function array_key_exists;
@@ -66,7 +66,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         }
 
         $resource = $this->mapper->toResource($data, $context);
-        $context[Context::VAIROGS_M_ENTITY_NORMALIZER] = true;
+        $context[Context::ENTITY_NORMALIZER->value] = true;
         $this->mapper->alreadyMapped[$data::class][$data->getId()] = $resource;
 
         return $this->normalizer->normalize($resource, $format, $context);
@@ -80,7 +80,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         ?string $format = null,
         array $context = [],
     ): bool {
-        if (array_key_exists(Context::VAIROGS_M_ENTITY_NORMALIZER, $context) || !is_object($data)) {
+        if (array_key_exists(Context::ENTITY_NORMALIZER->value, $context) || !is_object($data)) {
             return false;
         }
 

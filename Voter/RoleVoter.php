@@ -18,9 +18,11 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function in_array;
 
@@ -41,8 +43,10 @@ class RoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        return $this->requestCache->get('supportRole', $subject, function () use ($subject) {
-            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
+        return $this->requestCache->get(Context::SUPPORT_ROLE, $subject, function () use ($subject) {
+            $reflection = (new class {
+                use _LoadReflection;
+            })->loadReflection($subject, $this->requestCache);
 
             return $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
         });
@@ -57,8 +61,10 @@ class RoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        return $this->requestCache->get('allowedRole', $subject, function () use ($subject, $token) {
-            $reflection = $this->mapper->loadReflection($subject, $this->requestCache);
+        return $this->requestCache->get(Context::ALLOW_ROLE, $subject, function () use ($subject, $token) {
+            $reflection = (new class {
+                use _LoadReflection;
+            })->loadReflection($subject, $this->requestCache);
             $allowedRoles = [];
             foreach ($reflection->getAttributes(IsGranted::class) as $item) {
                 $allowedRoles[] = $item->newInstance()->attribute;

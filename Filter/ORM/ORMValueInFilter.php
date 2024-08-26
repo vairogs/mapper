@@ -29,7 +29,7 @@ use ReflectionProperty;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Mapper\Constants\Enum\MappingType;
+use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 
 use function array_key_exists;

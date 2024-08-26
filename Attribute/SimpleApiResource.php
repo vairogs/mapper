@@ -27,15 +27,14 @@ use ApiPlatform\State\OptionsInterface;
 use Attribute;
 use ReflectionException;
 use Stringable;
+use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
-use Symfony\Component\Console\Application;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpKernel\KernelInterface;
+use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Functions\Local\_GetClassFromFile;
 use Vairogs\Component\Mapper\Mapper;
 use Vairogs\Component\Mapper\Traits\_GetReadProperty;
-use Vairogs\Component\Mapper\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
@@ -51,9 +50,7 @@ use function sprintf;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 class SimpleApiResource extends ApiResource
 {
-    use _GetClassFromFile;
     use _GetReadProperty;
-    use _LoadReflection;
     use _MapFromAttribute;
 
     public function __construct(
@@ -128,17 +125,17 @@ class SimpleApiResource extends ApiResource
         array $extraProperties = [],
         array $simplify = [],
     ) {
-        $callerClass = $this->getClassFromFile(file: debug_backtrace()[0]['file'] ?? null);
+        $app = $GLOBALS['app'];
+
+        $requestCache = match (true) {
+            $app instanceof KernelInterface => $app->getContainer()->get(RequestCache::class),
+            $app instanceof Application => $app->getKernel()->getContainer()->get(RequestCache::class),
+            default => null,
+        };
+        $requestCache ??= new RequestCache();
+
+        $callerClass = $requestCache->get(Context::CALLER_CLASS, $file = debug_backtrace(limit: 1)[0]['file'], fn () => $this->getClassFromFile($file));
         $attributes = null;
-
-        $kernel = null;
-        if (($app = $GLOBALS['app']) instanceof KernelInterface) {
-            $kernel = $app;
-        } elseif ($app instanceof Application) {
-            $kernel = $app->getKernel();
-        }
-
-        $requestCache = null !== $kernel ? $kernel->getContainer()->get(RequestCache::class) : new RequestCache();
 
         try {
             $self = $this->loadReflection(objectOrClass: $callerClass, requestCache: $requestCache);
@@ -183,12 +180,12 @@ class SimpleApiResource extends ApiResource
                 unset($operations[$unset]);
             }
 
-            $files = $requestCache->get('resource_files', 'key', function () use ($requestCache) {
+            $files = $requestCache->get(Context::RESOURCE_FILES, 'key', function () use ($requestCache) {
                 $finder = new Finder();
                 $finder->files()->in(__DIR__ . '/../Filter/Resource/')->name('*.php');
                 $files = [];
                 foreach ($finder as $file) {
-                    $className = $requestCache->get('resource_files_file', $file->getRealPath(), fn () => $this->getClassFromFile($file->getRealPath()));
+                    $className = $requestCache->get(Context::CALLER_CLASS, $file->getRealPath(), fn () => $this->getClassFromFile($file->getRealPath()));
                     if ($className && class_exists($className)) {
                         $reflection = $this->loadReflection($className, requestCache: $requestCache);
                         if ($reflection->implementsInterface(FilterInterface::class)) {

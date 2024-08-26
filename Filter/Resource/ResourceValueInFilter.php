@@ -20,7 +20,7 @@ use Psr\Cache\InvalidArgumentException;
 use ReflectionException;
 use ReflectionProperty;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
-use Vairogs\Component\Mapper\Constants\Enum\MappingType;
+use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
 use Vairogs\Component\Mapper\Filter\ORM\ORMValueInFilter;
 

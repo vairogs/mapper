@@ -18,9 +18,9 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 
-final readonly class Context
+final readonly class MapperOperation
 {
-    public const array VAIROGS_M_OP_ALL = [
+    public const array OPERATION_ALL = [
         Get::class,
         GetCollection::class,
         Post::class,
@@ -29,26 +29,15 @@ final readonly class Context
         Delete::class,
     ];
 
-    public const array VAIROGS_M_OP_GET = [
+    public const array OPERATION_GET = [
         Get::class,
         GetCollection::class,
     ];
 
-    public const array VAIROGS_M_OP_EDIT = [
+    public const array OPERATION_EDIT = [
         Post::class,
         Patch::class,
         Put::class,
         Delete::class,
     ];
-    public const string VAIROGS_M_ENTITY_NORMALIZER = 'VAIROGS_M_ENTITY_NORMALIZER';
-
-    public const string VAIROGS_M_FILES = 'VAIROGS_M_FILES';
-    public const string VAIROGS_M_GET_RP = 'VAIROGS_M_GET_RP';
-    public const string VAIROGS_M_IS_RP = 'VAIROGS_M_IS_RP';
-    public const string VAIROGS_M_LEVEL = 'VAIROGS_M_LEVEL';
-    public const string VAIROGS_M_MAP = 'VAIROGS_M_MAP';
-    public const string VAIROGS_M_MCLASSES = 'VAIROGS_M_CLASSES';
-    public const string VAIROGS_M_PARENTS = 'VAIROGS_M_PARENTS';
-    public const string VAIROGS_M_REF = 'VAIROGS_M_REF';
-    public const string VAIROGS_M_RP = 'VAIROGS_M_RP';
 }

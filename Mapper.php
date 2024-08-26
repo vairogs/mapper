@@ -47,6 +47,7 @@ use Doctrine\Persistence\Proxy;
 use Error;
 use Exception;
 use InvalidArgumentException;
+use LogicException;
 use ReflectionAttribute;
 use ReflectionClass;
 use ReflectionException;
@@ -68,6 +69,7 @@ use Symfony\Component\TypeInfo\Type\ObjectType;
 use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Contracts\Translation\TranslatorInterface;
+use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
 use Vairogs\Component\Functions\Iteration;
@@ -76,13 +78,12 @@ use Vairogs\Component\Mapper\Attribute\Modifier;
 use Vairogs\Component\Mapper\Attribute\OnDeny;
 use Vairogs\Component\Mapper\Attribute\SimpleApiResource;
 use Vairogs\Component\Mapper\Attribute\SkipCircularReference;
-use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Constants\Enum\MappingType;
+use Vairogs\Component\Mapper\Constants\MapperOperation;
+use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 use Vairogs\Component\Mapper\Exception\ItemNotFoundHttpException;
 use Vairogs\Component\Mapper\Exception\MappingException;
 use Vairogs\Component\Mapper\Traits\_GetReadProperty;
-use Vairogs\Component\Mapper\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
@@ -96,6 +97,7 @@ use function is_array;
 use function is_object;
 use function is_string;
 use function is_subclass_of;
+use function method_exists;
 use function property_exists;
 use function sprintf;
 use function strtolower;
@@ -104,7 +106,6 @@ use function strtolower;
 class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
 {
     use _GetReadProperty;
-    use _LoadReflection;
     use _MapFromAttribute;
 
     public array $alreadyMapped = [];
@@ -244,6 +245,9 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         return [] !== $this->loadReflection($object, $this->requestCache)->getAttributes(ORM\Entity::class);
     }
 
+    /**
+     * @throws ReflectionException
+     */
     public function isMapped(
         object|string $object,
     ): bool {
@@ -282,7 +286,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         object $object,
         string $propertyName,
     ): bool {
-        return $this->requestCache->get(Context::VAIROGS_M_IS_RP, $propertyName, fn () => (bool) $this->processRelationProperty($object, $propertyName));
+        return $this->requestCache->get(Context::IS_READ_PROP, $propertyName, fn () => (bool) $this->processRelationProperty($object, $propertyName));
     }
 
     /**
@@ -494,7 +498,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $context['groups'] = [];
         }
 
-        $context[Context::VAIROGS_M_LEVEL] = ($context[Context::VAIROGS_M_LEVEL] ?? 1) + 1;
+        $context[Context::MAPPER_LEVEL->value] = ($context[Context::MAPPER_LEVEL->value] ?? 1) + 1;
 
         if (null === $object || null === $this->findById($object::class, $object->getId())) {
             return null;
@@ -517,7 +521,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
 
         (new class {
             use Iteration\_AddElementIfNotExists;
-        })->addElementIfNotExists($context[Context::VAIROGS_M_PARENTS], $targetResourceClass = $this->mapFromAttribute($object, $this->requestCache), $targetResourceClass);
+        })->addElementIfNotExists($context[Context::MAPPER_PARENTS->value], $targetResourceClass = $this->mapFromAttribute($object, $this->requestCache), $targetResourceClass);
 
         $operation = $context['operation'] ?? $context['root_operation'] ?? ($context['request'] ?? null)?->attributes->get('_api_operation');
         if (is_object($operation)) {
@@ -578,7 +582,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             }
 
             if (Collection::class === $propertyType || (class_exists($propertyType) && $this->isEntity($propertyType))) {
-                if (2 < $context[Context::VAIROGS_M_LEVEL] && !in_array($operation, Context::VAIROGS_M_OP_GET, true)) {
+                if (2 < $context[Context::MAPPER_LEVEL->value] && !in_array($operation, MapperOperation::OPERATION_GET, true)) {
                     continue;
                 }
 
@@ -780,6 +784,10 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         if ($entity instanceof Proxy) {
             $this->entityManager->getUnitOfWork()->initializeObject($entity);
 
+            if (!method_exists($entity, 'getId')) {
+                throw new LogicException('The entity does not have a getId method.');
+            }
+
             foreach (get_object_vars($entity) as $property => $value) {
                 $entity->{$property};
             }
@@ -792,6 +800,9 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         return $entity;
     }
 
+    /**
+     * @throws ReflectionException
+     */
     protected function getCollection(
         Operation $operation,
         array $context = [],
@@ -801,6 +812,9 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         return $this->applyFilterExtensionsToCollection($queryBuilder, new QueryNameGenerator(), $operation, $context);
     }
 
+    /**
+     * @throws ReflectionException
+     */
     protected function getEntityClass(
         Operation $operation,
     ): string {
@@ -837,7 +851,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         object $object,
         string $propertyName,
     ): ?string {
-        return $this->requestCache->get(Context::VAIROGS_M_GET_RP, $propertyName, fn () => $this->processRelationProperty($object, $propertyName, true));
+        return $this->requestCache->get(Context::GET_READ_PROP, $propertyName, fn () => $this->processRelationProperty($object, $propertyName, true));
     }
 
     /**
@@ -883,7 +897,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $maxLevels = $attributes[0]->newInstance()->maxLevels;
         }
 
-        return in_array($targetClass, $context[Context::VAIROGS_M_PARENTS], true) && (($maxLevels > 0 && $context[Context::VAIROGS_M_LEVEL] >= $maxLevels) || -1 === $maxLevels);
+        return in_array($targetClass, $context[Context::MAPPER_PARENTS->value], true) && (($maxLevels > 0 && $context[Context::MAPPER_LEVEL->value] >= $maxLevels) || -1 === $maxLevels);
     }
 
     protected function parseIfUuid(
@@ -1058,7 +1072,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         if (
             !$granted
             && is_object($propertyValue)
-            && !array_key_exists($propertyValue::class, $context[Context::VAIROGS_M_PARENTS])
+            && !array_key_exists($propertyValue::class, $context[Context::MAPPER_PARENTS->value])
             && $this->isResource($propertyValue)
             && !in_array($propertyName, $this->allowedFields[$resource::class], true)
         ) {

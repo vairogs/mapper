@@ -60,7 +60,7 @@ class Modifier
                     $code = str_replace('->', '', $code);
                     $object ??= new $target();
 
-                    return eval("return \$object->$code;");
+                    return eval("return $object->$code;");
                 }
 
                 $code = str_replace('::', '', $code);

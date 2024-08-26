@@ -11,92 +11,41 @@
 
 namespace Vairogs\Component\Mapper\Traits;
 
-use Symfony\Component\Finder\Finder;
+use ReflectionException;
+use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Local\_GetClassFromFile;
-use Vairogs\Component\Mapper\Attribute\Mapped;
-use Vairogs\Component\Mapper\Constants\Context;
-
-use function class_exists;
-use function dirname;
-use function getcwd;
-use function is_object;
-
-use const PHP_SAPI;
 
 trait _MapFromAttribute
 {
+    use _GetClassFromFile;
+    use _LoadReflection;
+    use _MapMapped;
+
+    /**
+     * @throws ReflectionException
+     */
     public function mapFromAttribute(
         object|string $objectOrClass,
         RequestCache $requestCache,
         bool $skipGlobal = false,
     ): ?string {
+        static $_helper = null;
+        if (null === $_helper) {
+            $_helper = new class {
+                use _FindClassesWithAttribute;
+                use _MapMapped;
+            };
+        }
+
         if (!$skipGlobal) {
-            $foundClasses = $requestCache->get(Context::VAIROGS_M_MCLASSES, 'key', fn () => $this->findClassesWithAttribute($requestCache));
+            $foundClasses = $requestCache->get(Context::CLASSES_WITH_ATTR, 'key', static fn () => $_helper->findClassesWithAttribute($requestCache));
 
             foreach ($foundClasses as $item) {
-                $this->mapMapped($item, $requestCache);
+                $_helper->mapMapped($item, $requestCache);
             }
         }
 
-        return $this->mapMapped($objectOrClass, $requestCache);
-    }
-
-    protected function findClassesWithAttribute(
-        RequestCache $requestCache,
-    ): array {
-        return $requestCache->get(Context::VAIROGS_M_FILES, 'key', function () use ($requestCache) {
-            $matchingClasses = [];
-            $finder = new Finder();
-            $dirname = dirname(getcwd());
-            if ('cli' === PHP_SAPI) {
-                $dirname = getcwd();
-            }
-
-            $finder->files()->in([$dirname . '/src/ApiResource', $dirname . '/src/Entity'])->name('*.php');
-
-            foreach ($finder as $file) {
-                $className = (new class {
-                    use _GetClassFromFile;
-                })->getClassFromFile($file->getRealPath());
-                if ($className && class_exists($className)) {
-                    $attributes = (new class {
-                        use _LoadReflection;
-                    })->loadReflection($className, $requestCache)->getAttributes(Mapped::class);
-                    if (!empty($attributes)) {
-                        $matchingClasses[] = $className;
-                    }
-                }
-            }
-
-            return $matchingClasses;
-        });
-    }
-
-    protected function mapMapped(
-        object|string $class,
-        RequestCache $requestCache,
-    ): ?string {
-        if (is_object($class)) {
-            $class = $class::class;
-        }
-
-        return $requestCache->get(Context::VAIROGS_M_MAP, $class, function () use ($class, $requestCache) {
-            $reflection = (new class {
-                use _LoadReflection;
-            })->loadReflection($class, $requestCache);
-
-            if ([] !== ($attributes = $reflection->getAttributes(Mapped::class))) {
-                $attribute = $attributes[0]->newInstance();
-
-                if (null !== $attribute->reverse) {
-                    $requestCache->get(Context::VAIROGS_M_MAP, $attribute->mapsTo, fn () => $attribute->reverse);
-                }
-
-                return $attribute->mapsTo;
-            }
-
-            return null;
-        });
+        return $_helper->mapMapped($objectOrClass, $requestCache);
     }
 }

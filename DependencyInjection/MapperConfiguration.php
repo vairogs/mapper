@@ -16,6 +16,7 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Vairogs\Bundle\DependencyInjection\AbstractDependencyConfiguration;
 use Vairogs\Bundle\VairogsBundle;
+use Vairogs\Component\Functions\Vairogs;
 
 use function sprintf;
 
@@ -29,7 +30,7 @@ final class MapperConfiguration extends AbstractDependencyConfiguration
         $rootNode
             ->children()
                 ->arrayNode($component)
-                ->{$enableIfStandalone(sprintf('%s/%s', VairogsBundle::VAIROGS, $component), self::class)}()
+                ->{$enableIfStandalone(sprintf('%s/%s', Vairogs::VAIROGS, $component), self::class)}()
                 ->children()
                     ->arrayNode('voters')
                         ->addDefaultsIfNotSet()

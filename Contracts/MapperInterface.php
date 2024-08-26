@@ -16,7 +16,7 @@ use Doctrine\ORM\Exception\ORMException;
 use ReflectionClass;
 use ReflectionException;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Mapper\Constants\Enum\MappingType;
+use Vairogs\Component\Mapper\Constants\MappingType;
 
 interface MapperInterface
 {

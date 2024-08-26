@@ -17,6 +17,7 @@ use Psr\Log\LoggerInterface;
 use ReflectionException;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
+use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
@@ -48,7 +49,7 @@ abstract class AbstractResourceFilter implements FilterInterface
     public function getProperties(
         string $resourceClass,
     ): array {
-        return $this->requestCache->get('resourceProperties', $resourceClass, function () use ($resourceClass) {
+        return $this->requestCache->get(Context::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass) {
             $properties = [];
 
             $save = (new class {

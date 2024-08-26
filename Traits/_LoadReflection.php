@@ -11,11 +11,11 @@
 
 namespace Vairogs\Component\Mapper\Traits;
 
-use Doctrine\Persistence\Proxy;
 use ReflectionClass;
 use ReflectionException;
+use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Mapper\Constants\Context;
+use Vairogs\Component\Functions\Php\_GetReflection;
 
 use function is_object;
 
@@ -34,17 +34,18 @@ trait _LoadReflection
             $class = $objectOrClass::class;
         }
 
-        $reflection = $requestCache->get(Context::VAIROGS_M_REF, $class, static function () use ($objectOrClass) {
-            $reflection = new ReflectionClass($objectOrClass);
-
-            if ($objectOrClass instanceof Proxy) {
-                $reflection = $reflection->getParentClass();
+        $reflection = $requestCache->get(Context::REFLECTION, $class, static function () use ($objectOrClass) {
+            static $_helper = null;
+            if (null === $_helper) {
+                $_helper = (new class {
+                    use _GetReflection;
+                });
             }
 
-            return $reflection;
+            return $_helper->getReflection($objectOrClass);
         });
 
-        $requestCache->get(Context::VAIROGS_M_REF, $reflection->getName(), static fn () => $reflection);
+        $requestCache->get(Context::REFLECTION, $reflection->getName(), static fn () => $reflection);
 
         return $reflection;
     }
