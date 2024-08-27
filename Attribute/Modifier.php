@@ -37,6 +37,7 @@ class Modifier
     ): mixed {
         if (1 === count($this->parameters)) {
             $param = $this->parameters[0];
+
             if (is_callable($param)) {
                 return $param($value);
             }
@@ -48,14 +49,21 @@ class Modifier
             }
         } elseif (2 === count($this->parameters)) {
             [$target, $expression] = $this->parameters;
+
             if (null !== $object) {
                 $target = $object::class;
             }
             $code = str_replace('$value', var_export($value, true), $expression);
 
-            if (null !== $object || (new class {
-                use _Exists;
-            })->exists($target)) {
+            static $_helper = null;
+
+            if (null === $_helper) {
+                $_helper = new class {
+                    use _Exists;
+                };
+            }
+
+            if (null !== $object || $_helper->exists($target)) {
                 if (str_contains($expression, '->')) {
                     $code = str_replace('->', '', $code);
                     $object ??= new $target();

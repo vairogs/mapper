@@ -19,7 +19,7 @@ use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Functions\Iteration;
+use Vairogs\Component\Functions\Iteration\_HaveCommonElements;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 use Vairogs\Component\Mapper\Traits\_LoadReflection;
@@ -46,14 +46,22 @@ class OperationRoleVoter extends Voter
     ): bool {
         return $this->requestCache->get(Context::SUPPORT_OPERATION, $subject, function () use ($subject, $attribute) {
             $result = false;
-            $reflection = (new class {
-                use _LoadReflection;
-            })->loadReflection($subject, $this->requestCache);
+
+            static $_helper = null;
+
+            if (null === $_helper) {
+                $_helper = new class {
+                    use _LoadReflection;
+                };
+            }
+
+            $reflection = $_helper->loadReflection($subject, $this->requestCache);
 
             $check = $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
 
             if ($check) {
                 $grantedAttributes = [];
+
                 foreach ($reflection->getAttributes(GrantedOperation::class) as $grantedAttribute) {
                     $grantedAttributes[] = $grantedAttribute->newInstance()->operations;
                 }
@@ -75,23 +83,27 @@ class OperationRoleVoter extends Voter
         TokenInterface $token,
     ): bool {
         return $this->requestCache->get(Context::ALLOW_OPERATION, $subject, function () use ($subject, $token) {
-            $reflection = (new class {
-                use _LoadReflection;
-            })->loadReflection($subject, $this->requestCache);
+            static $_helper = null;
+
+            if (null === $_helper) {
+                $_helper = new class {
+                    use _HaveCommonElements;
+                    use _LoadReflection;
+                };
+            }
+
+            $reflection = $_helper->loadReflection($subject, $this->requestCache);
             $allowedRoles = [];
+
             foreach ($reflection->getAttributes(GrantedOperation::class) as $item) {
                 $allowedRoles[] = $item->newInstance()->role;
             }
 
             if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
-                $result = true;
-            } else {
-                $result = (new class {
-                    use Iteration\_HaveCommonElements;
-                })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
+                return true;
             }
 
-            return $result;
+            return $_helper->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
         });
     }
 }

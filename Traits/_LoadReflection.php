@@ -36,10 +36,11 @@ trait _LoadReflection
 
         $reflection = $requestCache->get(Context::REFLECTION, $class, static function () use ($objectOrClass) {
             static $_helper = null;
+
             if (null === $_helper) {
-                $_helper = (new class {
+                $_helper = new class {
                     use _GetReflection;
-                });
+                };
             }
 
             return $_helper->getReflection($objectOrClass);

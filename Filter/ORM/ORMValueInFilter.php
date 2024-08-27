@@ -31,6 +31,7 @@ use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
 use function array_map;
@@ -79,6 +80,14 @@ class ORMValueInFilter extends AbstractFilter
             return;
         }
 
+        static $_helper = null;
+
+        if (null === $_helper) {
+            $_helper = new class {
+                use _MapFromAttribute;
+            };
+        }
+
         foreach ($value as $type => $filterValue) {
             $alias = $queryBuilder->getRootAliases()[0];
             $field = $property;
@@ -89,31 +98,34 @@ class ORMValueInFilter extends AbstractFilter
 
             $values = explode(',', $filterValue);
 
-            $reflection = $this->mapper->loadReflection($resourceClass, $this->requestCache);
+            $reflection = $_helper->loadReflection($resourceClass, $this->requestCache);
 
             if ('m' !== $alias) {
                 $exp = explode('.', $property, 2);
                 $typeAlias = ($prop = $reflection->getProperty(reset($exp)))->getType();
+
                 if (null === $typeAlias || $typeAlias instanceof ReflectionUnionType) {
                     return;
                 }
 
                 if ($this->mapper->isMappedType($typeAlias->getName(), MappingType::ENTITY, $context)) {
-                    $reflection = $this->mapper->loadReflection($typeAlias->getName(), $this->requestCache);
+                    $reflection = $_helper->loadReflection($typeAlias->getName(), $this->requestCache);
                 }
 
                 if (Collection::class === $typeAlias->getName()) {
                     $orm = array_merge_recursive($prop->getAttributes(ManyToMany::class), $prop->getAttributes(OneToMany::class));
+
                     if ([] !== $orm) {
-                        $colRef = $this->mapper->loadReflection($this->mapper->mapFromAttribute($orm[0]->getArguments()['targetEntity'], $this->requestCache), $this->requestCache);
-                        $reflection = $this->mapper->loadReflection($this->mapper->mapFromAttribute($colRef->getName(), $this->requestCache), $this->requestCache);
+                        $colRef = $_helper->loadReflection($_helper->mapFromAttribute($orm[0]->getArguments()['targetEntity'], $this->requestCache), $this->requestCache);
+                        $reflection = $_helper->loadReflection($_helper->mapFromAttribute($colRef->getName(), $this->requestCache), $this->requestCache);
                     }
                 }
             }
 
             $propertyType = $reflection->getProperty($field)->getType();
+
             if (!$propertyType?->isBuiltin()) {
-                $refType = $this->mapper->loadReflection($propertyType?->getName(), $this->requestCache);
+                $refType = $_helper->loadReflection($propertyType->getName(), $this->requestCache);
 
                 if ($refType->implementsInterface(BackedEnum::class)) {
                     $instance = $reflection->newInstance();
@@ -147,11 +159,13 @@ class ORMValueInFilter extends AbstractFilter
     ): string {
         try {
             $type = (new ReflectionProperty($object, $propertyName))->getType();
+
             if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
                 throw new InvalidArgumentException('Not an enum');
             }
 
             $typeName = $type->getName();
+
             if (!enum_exists($typeName)) {
                 throw new InvalidArgumentException('Enum not found: ' . $typeName);
             }

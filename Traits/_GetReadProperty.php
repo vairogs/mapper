@@ -34,18 +34,22 @@ trait _GetReadProperty
 
         return $requestCache->get(Context::READ_PROPERTY, $class, static function () use ($class, $requestCache) {
             static $_helper = null;
+
             if (null === $_helper) {
-                $_helper = (new class {
+                $_helper = new class {
                     use _LoadReflection;
-                });
+                };
             }
 
             $property = null;
+
             foreach ($_helper->loadReflection($class, $requestCache)->getProperties() as $reflectionProperty) {
                 if ([] !== ($attributes = $reflectionProperty->getAttributes(ApiProperty::class))) {
                     $prop = $attributes[0]->newInstance();
+
                     if ($prop->isIdentifier()) {
                         $property = $reflectionProperty->getName();
+
                         break;
                     }
                 }

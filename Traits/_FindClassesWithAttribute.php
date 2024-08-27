@@ -36,6 +36,7 @@ trait _FindClassesWithAttribute
             $matchingClasses = [];
             $finder = new Finder();
             $dirname = dirname(getcwd());
+
             if ('cli' === PHP_SAPI) {
                 $dirname = getcwd();
             }
@@ -43,6 +44,7 @@ trait _FindClassesWithAttribute
             $finder->files()->in([$dirname . '/src/ApiResource', $dirname . '/src/Entity'])->name('*.php');
 
             static $_helper = null;
+
             if (null === $_helper) {
                 $_helper = new class {
                     use _GetClassFromFile;
@@ -52,8 +54,10 @@ trait _FindClassesWithAttribute
 
             foreach ($finder as $file) {
                 $className = $requestCache->get(Context::CALLER_CLASS, $file->getRealPath(), fn () => $_helper->getClassFromFile($file->getRealPath()));
+
                 if ($className && class_exists($className)) {
                     $attributes = $_helper->loadReflection($className, $requestCache)->getAttributes(Mapped::class);
+
                     if (!empty($attributes)) {
                         $matchingClasses[] = $className;
                     }

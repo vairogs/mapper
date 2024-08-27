@@ -31,6 +31,7 @@ trait _MapFromAttribute
         bool $skipGlobal = false,
     ): ?string {
         static $_helper = null;
+
         if (null === $_helper) {
             $_helper = new class {
                 use _FindClassesWithAttribute;

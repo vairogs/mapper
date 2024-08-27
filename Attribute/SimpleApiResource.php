@@ -50,9 +50,6 @@ use function sprintf;
 #[Attribute(Attribute::TARGET_CLASS | Attribute::IS_REPEATABLE)]
 class SimpleApiResource extends ApiResource
 {
-    use _GetReadProperty;
-    use _MapFromAttribute;
-
     public function __construct(
         ?string $uriTemplate = null,
         ?string $shortName = null,
@@ -125,35 +122,50 @@ class SimpleApiResource extends ApiResource
         array $extraProperties = [],
         array $simplify = [],
     ) {
-        $app = $GLOBALS['app'];
+        static $_helper = null;
+        static $_cache = null;
 
-        $requestCache = match (true) {
-            $app instanceof KernelInterface => $app->getContainer()->get(RequestCache::class),
-            $app instanceof Application => $app->getKernel()->getContainer()->get(RequestCache::class),
-            default => null,
-        };
-        $requestCache ??= new RequestCache();
+        if (null === $_helper) {
+            $_helper = new class {
+                use _GetReadProperty;
+                use _MapFromAttribute;
+            };
+        }
 
-        $callerClass = $requestCache->get(Context::CALLER_CLASS, $file = debug_backtrace(limit: 1)[0]['file'], fn () => $this->getClassFromFile($file));
+        if (null === $_cache) {
+            $app = $GLOBALS['app'];
+
+            $_cache = match (true) {
+                $app instanceof KernelInterface => $app->getContainer()->get(RequestCache::class),
+                $app instanceof Application => $app->getKernel()->getContainer()->get(RequestCache::class),
+                default => null,
+            };
+
+            $_cache ??= new RequestCache();
+        }
+
+        $callerClass = $_cache->get(Context::CALLER_CLASS, $file = debug_backtrace(limit: 1)[0]['file'], fn () => $_helper->getClassFromFile($file));
         $attributes = null;
 
         try {
-            $self = $this->loadReflection(objectOrClass: $callerClass, requestCache: $requestCache);
+            $self = $_helper->loadReflection(objectOrClass: $callerClass, requestCache: $_cache);
 
             $attributes = $self->getAttributes(name: self::class)[0]->getArguments();
-            $current = $this->loadReflection(objectOrClass: __CLASS__, requestCache: $requestCache)->getMethod(name: __FUNCTION__);
+            $current = $_helper->loadReflection(objectOrClass: __CLASS__, requestCache: $_cache)->getMethod(name: __FUNCTION__);
             $i = $a = 0;
             $args = func_get_args();
 
             $named = [];
+
             foreach ($current->getParameters() as $parameter) {
                 $named[$parameter->getName()] = $a;
                 $a++;
             }
 
-            $readProperty = $this->getReadProperty($self->getName(), $requestCache);
+            $readProperty = $_helper->getReadProperty($self->getName(), $_cache);
 
             $uriVariables = null;
+
             if ('id' !== $readProperty) {
                 $uriVariables = [
                     $readProperty => new Link(fromProperty: $readProperty, fromClass: $self->getName(), identifiers: [$readProperty]),
@@ -180,14 +192,17 @@ class SimpleApiResource extends ApiResource
                 unset($operations[$unset]);
             }
 
-            $files = $requestCache->get(Context::RESOURCE_FILES, 'key', function () use ($requestCache) {
+            $files = $_cache->get(Context::RESOURCE_FILES, 'key', function () use ($_helper, $_cache) {
                 $finder = new Finder();
                 $finder->files()->in(__DIR__ . '/../Filter/Resource/')->name('*.php');
                 $files = [];
+
                 foreach ($finder as $file) {
-                    $className = $requestCache->get(Context::CALLER_CLASS, $file->getRealPath(), fn () => $this->getClassFromFile($file->getRealPath()));
+                    $className = $_cache->get(Context::CALLER_CLASS, $file->getRealPath(), fn () => $_helper->getClassFromFile($file->getRealPath()));
+
                     if ($className && class_exists($className)) {
-                        $reflection = $this->loadReflection($className, requestCache: $requestCache);
+                        $reflection = $_helper->loadReflection($className, requestCache: $_cache);
+
                         if ($reflection->implementsInterface(FilterInterface::class)) {
                             $files[] = $reflection->getName();
                         }
@@ -204,7 +219,7 @@ class SimpleApiResource extends ApiResource
                 'normalizationContext' => ['groups' => [$self->getConstant('READ'), ], ],
                 'operations' => array_values($operations),
                 'order' => ['createdAt' => OrderFilterInterface::DIRECTION_DESC, ],
-                'shortName' => $this->loadReflection($this->mapFromAttribute($callerClass, $requestCache, true), requestCache: $requestCache)->getShortName(),
+                'shortName' => $_helper->loadReflection($_helper->mapFromAttribute($callerClass, $_cache, true), requestCache: $_cache)->getShortName(),
                 'provider' => Mapper::class,
                 'processor' => Mapper::class,
                 'filters' => $filters,
@@ -213,19 +228,23 @@ class SimpleApiResource extends ApiResource
             foreach ($defaults as $dKey => $dValue) {
                 if ('operations' === $dKey && is_array($args[$named[$dKey]] ?? null)) {
                     $existing = $args[$named[$dKey]];
+
                     if ([] === $existing) {
                         $args[$named[$dKey]] = array_merge($existing, $defaults['operations']);
+
                         continue;
                     }
 
                     foreach ($existing as $op) {
-                        $opAttribute = $this->loadReflection($op, requestCache: $requestCache);
+                        $opAttribute = $_helper->loadReflection($op, requestCache: $_cache);
+
                         if (null === $opAttribute->newInstance()->getName()) {
                             unset($operations[$op::class]);
                         }
                     }
 
                     $args[$named[$dKey]] = array_merge($existing, array_values($operations));
+
                     continue;
                 }
 

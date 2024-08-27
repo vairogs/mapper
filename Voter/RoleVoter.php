@@ -44,9 +44,15 @@ class RoleVoter extends Voter
         mixed $subject,
     ): bool {
         return $this->requestCache->get(Context::SUPPORT_ROLE, $subject, function () use ($subject) {
-            $reflection = (new class {
-                use _LoadReflection;
-            })->loadReflection($subject, $this->requestCache);
+            static $_helper = null;
+
+            if (null === $_helper) {
+                $_helper = new class {
+                    use _LoadReflection;
+                };
+            }
+
+            $reflection = $_helper->loadReflection($subject, $this->requestCache);
 
             return $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
         });
@@ -62,23 +68,27 @@ class RoleVoter extends Voter
         TokenInterface $token,
     ): bool {
         return $this->requestCache->get(Context::ALLOW_ROLE, $subject, function () use ($subject, $token) {
-            $reflection = (new class {
-                use _LoadReflection;
-            })->loadReflection($subject, $this->requestCache);
+            static $_helper = null;
+
+            if (null === $_helper) {
+                $_helper = new class {
+                    use _LoadReflection;
+                    use Iteration\_HaveCommonElements;
+                };
+            }
+
+            $reflection = $_helper->loadReflection($subject, $this->requestCache);
             $allowedRoles = [];
+
             foreach ($reflection->getAttributes(IsGranted::class) as $item) {
                 $allowedRoles[] = $item->newInstance()->attribute;
             }
 
             if (in_array(AuthenticatedVoter::PUBLIC_ACCESS, $allowedRoles, true)) {
-                $result = true;
-            } else {
-                $result = (new class {
-                    use Iteration\_HaveCommonElements;
-                })->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
+                return true;
             }
 
-            return $result;
+            return $_helper->haveCommonElements($token->getUser()?->getRoles() ?? [], $allowedRoles);
         });
     }
 }

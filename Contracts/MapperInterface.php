@@ -13,9 +13,7 @@ namespace Vairogs\Component\Mapper\Contracts;
 
 use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use Doctrine\ORM\Exception\ORMException;
-use ReflectionClass;
 use ReflectionException;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\MappingType;
 
 interface MapperInterface
@@ -35,11 +33,6 @@ interface MapperInterface
         string $class,
         mixed $id,
     ): ?object;
-
-    public function getReadProperty(
-        object|string $class,
-        RequestCache $requestCache,
-    ): string;
 
     /**
      * @throws ReflectionException
@@ -66,20 +59,6 @@ interface MapperInterface
     public function isResource(
         object|string $object,
     ): bool;
-
-    /**
-     * @throws ReflectionException
-     */
-    public function loadReflection(
-        object|string $objectOrClass,
-        RequestCache $requestCache,
-    ): ReflectionClass;
-
-    public function mapFromAttribute(
-        object|string $objectOrClass,
-        RequestCache $requestCache,
-        bool $skipGlobal = false,
-    ): ?string;
 
     /**
      * @throws ReflectionException

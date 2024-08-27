@@ -21,6 +21,7 @@ use Vairogs\Bundle\Constants\Context;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function array_key_exists;
 use function array_merge;
@@ -52,22 +53,29 @@ abstract class AbstractResourceFilter implements FilterInterface
         return $this->requestCache->get(Context::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass) {
             $properties = [];
 
-            $save = (new class {
-                use _AddElementIfNotExists;
-            });
+            static $_helper = null;
 
-            foreach ($this->mapper->loadReflection($resourceClass, $this->requestCache)->getProperties() as $property) {
+            if (null === $_helper) {
+                $_helper = new class {
+                    use _AddElementIfNotExists;
+                    use _LoadReflection;
+                };
+            }
+
+            foreach ($_helper->loadReflection($resourceClass, $this->requestCache)->getProperties() as $property) {
                 $type = $property->getType();
+
                 if ($type instanceof ReflectionUnionType) {
                     continue;
                 }
 
                 $propertyType = $type?->getName();
+
                 if (null === $propertyType) {
                     continue;
                 }
 
-                $save->addElementIfNotExists($properties[$propertyType], $property, $property->getName());
+                $_helper->addElementIfNotExists($properties[$propertyType], $property, $property->getName());
             }
 
             return $properties;

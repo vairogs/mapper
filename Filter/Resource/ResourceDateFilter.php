@@ -21,10 +21,10 @@ use DateTimeInterface;
 use DateTimeZone;
 use Doctrine\ORM\QueryBuilder;
 use Exception;
-use Psr\Cache\InvalidArgumentException;
 use ReflectionException;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_merge;
 use function date_default_timezone_get;
@@ -46,7 +46,16 @@ class ResourceDateFilter extends AbstractResourceFilter implements DateFilterInt
             return;
         }
 
+        static $_helper = null;
+
+        if (null === $_helper) {
+            $_helper = new class {
+                use _MapFromAttribute;
+            };
+        }
+
         $timeZone = new DateTimeZone(date_default_timezone_get());
+
         foreach ($context['filters'] ?? [] as $property => $filter) {
             foreach ($filter as $condition => $value) {
                 $context['filters'][$property][$condition] = (new DateTime($value))->setTimezone($timeZone)->format(DateTimeInterface::ATOM);
@@ -58,7 +67,7 @@ class ResourceDateFilter extends AbstractResourceFilter implements DateFilterInt
             $this->logger,
             $this->properties,
             $this->nameConverter,
-        ))->apply($queryBuilder, $queryNameGenerator, $this->mapper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
+        ))->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
     }
 
     public function getDescription(
@@ -82,7 +91,6 @@ class ResourceDateFilter extends AbstractResourceFilter implements DateFilterInt
 
     /**
      * @throws ReflectionException
-     * @throws InvalidArgumentException
      */
     public function getPropertiesForType(
         string $resourceClass,

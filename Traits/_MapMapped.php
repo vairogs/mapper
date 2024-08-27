@@ -33,10 +33,11 @@ trait _MapMapped
 
         return $requestCache->get(Context::MAP, $class, static function () use ($class, $requestCache) {
             static $_helper = null;
+
             if (null === $_helper) {
-                $_helper = (new class {
+                $_helper = new class {
                     use _LoadReflection;
-                });
+                };
             }
 
             $reflection = $_helper->loadReflection($class, $requestCache);
