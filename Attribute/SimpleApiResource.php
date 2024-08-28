@@ -257,6 +257,7 @@ class SimpleApiResource extends ApiResource
                 if (array_key_exists($i, $args) && $parameter->getDefaultValue() !== $args[$i]) {
                     $attributes[$parameter->getName()] = $args[$i];
                 }
+
                 $i++;
             }
         } catch (ReflectionException) {
