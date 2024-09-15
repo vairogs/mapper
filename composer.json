@@ -30,6 +30,7 @@
         "doctrine/persistence": "*",
         "symfony/config": "*",
         "symfony/dependency-injection": "*",
+        "symfony/finder": "*",
         "symfony/http-kernel": "*",
         "symfony/property-access": "*",
         "symfony/property-info": "*",

@@ -12,16 +12,11 @@
 namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionException;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Functions\Local\_GetClassFromFile;
+use Vairogs\Component\Mapper\Constants\Context;
+use Vairogs\Component\Mapper\Service\RequestCache;
 
 trait _MapFromAttribute
 {
-    use _GetClassFromFile;
-    use _LoadReflection;
-    use _MapMapped;
-
     /**
      * @throws ReflectionException
      */

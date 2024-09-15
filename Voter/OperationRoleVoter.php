@@ -17,11 +17,11 @@ use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration\_HaveCommonElements;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Service\RequestCache;
 use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function array_merge;
@@ -56,7 +56,6 @@ class OperationRoleVoter extends Voter
             }
 
             $reflection = $_helper->loadReflection($subject, $this->requestCache);
-
             $check = $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
 
             if ($check) {

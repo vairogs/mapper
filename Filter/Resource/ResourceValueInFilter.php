@@ -23,6 +23,7 @@ use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
 use Vairogs\Component\Mapper\Filter\ORM\ORMValueInFilter;
 use Vairogs\Component\Mapper\Traits\_GetReadProperty;
+use Vairogs\Component\Mapper\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_map;
@@ -101,6 +102,7 @@ class ResourceValueInFilter extends AbstractResourceFilter
         if (null === $_helper) {
             $_helper = new class {
                 use _GetReadProperty;
+                use _LoadReflection;
                 use _MapFromAttribute;
             };
         }

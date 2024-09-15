@@ -26,10 +26,8 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\Metadata\Resource\Factory\ResourceMetadataCollectionFactoryInterface;
-use ApiPlatform\Metadata\UrlGeneratorInterface;
 use ApiPlatform\State\ProcessorInterface;
 use ApiPlatform\State\ProviderInterface;
-use ApiPlatform\State\SerializerContextBuilderInterface;
 use ApiPlatform\Symfony\Security\Exception\AccessDeniedException;
 use Countable;
 use DateTimeImmutable;
@@ -57,8 +55,6 @@ use Symfony\Component\DependencyInjection\ParameterBag\ParameterBagInterface;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\PreconditionFailedHttpException;
-use Symfony\Component\Mercure\HubInterface;
-use Symfony\Component\Mercure\Update;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\PropertyInfo\Extractor\PhpDocExtractor;
@@ -69,8 +65,6 @@ use Symfony\Component\TypeInfo\Type\ObjectType;
 use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Component\Uid\Uuid;
 use Symfony\Contracts\Translation\TranslatorInterface;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
 use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Attribute\Mapped;
@@ -78,11 +72,14 @@ use Vairogs\Component\Mapper\Attribute\Modifier;
 use Vairogs\Component\Mapper\Attribute\OnDeny;
 use Vairogs\Component\Mapper\Attribute\SimpleApiResource;
 use Vairogs\Component\Mapper\Attribute\SkipCircularReference;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Constants\MapperOperation;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
 use Vairogs\Component\Mapper\Exception\ItemNotFoundHttpException;
 use Vairogs\Component\Mapper\Exception\MappingException;
+use Vairogs\Component\Mapper\Mercure\Mercure;
+use Vairogs\Component\Mapper\Service\RequestCache;
 use Vairogs\Component\Mapper\Traits\_GetReadProperty;
 use Vairogs\Component\Mapper\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
@@ -115,11 +112,8 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         protected readonly AuthorizationCheckerInterface $security,
         protected readonly TranslatorInterface $translator,
         protected readonly ParameterBagInterface $bag,
-        protected readonly UrlGeneratorInterface $urlGenerator,
-        protected readonly Serializer\SerializerInterface $serializer,
-        protected readonly SerializerContextBuilderInterface $serializerContextBuilder,
         protected readonly RequestCache $requestCache,
-        protected readonly ?HubInterface $hub = null,
+        protected readonly Mercure $mercure,
         #[AutowireIterator(
             'api_platform.doctrine.orm.query_extension.collection',
         )]
@@ -410,7 +404,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         };
 
         $this->flush($entity, null !== $entity);
-        $this->publishToMercure($entity, $operation);
+        $this->mercure->publishToMercure($entity, $operation);
 
         return $this->toResource($entity, $context);
     }
@@ -457,6 +451,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         if (null === $_helper) {
             $_helper = new class {
                 use _GetReadProperty;
+                use _LoadReflection;
                 use _MapFromAttribute;
             };
         }
@@ -596,6 +591,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         if (null === $_helper) {
             $_helper = new class {
                 use _GetReadProperty;
+                use _LoadReflection;
                 use _MapFromAttribute;
                 use Iteration\_AddElementIfNotExists;
                 use Iteration\_HaveCommonElements;
@@ -826,15 +822,6 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             return true;
         }
 
-        static $_helper = null;
-
-        if (null === $_helper) {
-            $_helper = new class {
-                use _GetReadProperty;
-                use _MapFromAttribute;
-            };
-        }
-
         if ($value1 instanceof DateTimeInterface && $value2 instanceof DateTimeInterface) {
             return $value1->getTimestamp() === $value2->getTimestamp();
         }
@@ -847,6 +834,15 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             }
 
             if ($value1 instanceof PersistentCollection && is_array($value2) && $value1->count() === count($value2)) {
+                static $_helper = null;
+
+                if (null === $_helper) {
+                    $_helper = new class {
+                        use _GetReadProperty;
+                        use _MapFromAttribute;
+                    };
+                }
+
                 $firstSet = $value1->getValues();
                 $secondSet = $value2;
                 $rp = $_helper->getReadProperty($secondSet[0], $this->requestCache);
@@ -1130,46 +1126,6 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         }
 
         return $result;
-    }
-
-    /**
-     * @throws ReflectionException
-     */
-    protected function publishToMercure(
-        object $entity,
-        Operation $operation,
-    ): void {
-        if ($this->hub instanceof HubInterface) {
-            static $_helper = null;
-
-            if (null === $_helper) {
-                $_helper = new class {
-                    use _MapFromAttribute;
-                };
-            }
-
-            $topic = sprintf(
-                '%s/api/%s/%s',
-                $this->urlGenerator->generate('api_entrypoint', [], UrlGeneratorInterface::ABS_URL),
-                $_helper->mapFromAttribute($entity, $this->requestCache),
-                $entity->getId(),
-            );
-
-            $resource = $_helper->mapFromAttribute($entity, $this->requestCache);
-
-            $context = [
-                'operation' => $operation,
-                'resource_class' => $operation->getClass(),
-                'item_operation_name' => $operation->getName(),
-                'groups' => [$_helper->loadReflection($resource, $this->requestCache)->getConstant('READ')],
-            ];
-
-            $data = $this->serializer->serialize($entity, 'jsonld', $context);
-
-            $update = new Update($topic, $data);
-
-            $this->hub->publish($update);
-        }
     }
 
     /**

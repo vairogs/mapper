@@ -13,9 +13,9 @@ namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionClass;
 use ReflectionException;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Functions\Php\_GetReflection;
+use Vairogs\Component\Functions\Php;
+use Vairogs\Component\Mapper\Constants\Context;
+use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function is_object;
 
@@ -34,18 +34,15 @@ trait _LoadReflection
             $class = $objectOrClass::class;
         }
 
-        $reflection = $requestCache->get(Context::REFLECTION, $class, static function () use ($objectOrClass) {
-            static $_helper = null;
+        static $_helper = null;
 
-            if (null === $_helper) {
-                $_helper = new class {
-                    use _GetReflection;
-                };
-            }
+        if (null === $_helper) {
+            $_helper = new class {
+                use Php\_GetReflection;
+            };
+        }
 
-            return $_helper->getReflection($objectOrClass);
-        });
-
+        $reflection = $requestCache->get(Context::REFLECTION, $class, static fn () => $_helper->getReflection($objectOrClass));
         $requestCache->get(Context::REFLECTION, $reflection->getName(), static fn () => $reflection);
 
         return $reflection;

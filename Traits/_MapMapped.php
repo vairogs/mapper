@@ -12,9 +12,9 @@
 namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionException;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Attribute\Mapped;
+use Vairogs\Component\Mapper\Constants\Context;
+use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function is_object;
 

@@ -17,10 +17,10 @@ use Psr\Log\LoggerInterface;
 use ReflectionException;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Service\RequestCache;
 use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function array_key_exists;
@@ -50,9 +50,9 @@ abstract class AbstractResourceFilter implements FilterInterface
     public function getProperties(
         string $resourceClass,
     ): array {
-        return $this->requestCache->get(Context::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass) {
-            $properties = [];
+        $requestCache = $this->requestCache;
 
+        return $this->requestCache->get(Context::RESOURCE_PROPERTIES, $resourceClass, static function () use ($resourceClass, $requestCache) {
             static $_helper = null;
 
             if (null === $_helper) {
@@ -62,7 +62,9 @@ abstract class AbstractResourceFilter implements FilterInterface
                 };
             }
 
-            foreach ($_helper->loadReflection($resourceClass, $this->requestCache)->getProperties() as $property) {
+            $properties = [];
+
+            foreach ($_helper->loadReflection($resourceClass, $requestCache)->getProperties() as $property) {
                 $type = $property->getType();
 
                 if ($type instanceof ReflectionUnionType) {

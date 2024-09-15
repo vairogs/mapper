@@ -18,10 +18,10 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Service\RequestCache;
 use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function in_array;

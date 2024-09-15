@@ -13,10 +13,10 @@ namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionException;
 use Symfony\Component\Finder\Finder;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Functions\Local\_GetClassFromFile;
+use Vairogs\Component\Functions\Local;
 use Vairogs\Component\Mapper\Attribute\Mapped;
+use Vairogs\Component\Mapper\Constants\Context;
+use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function class_exists;
 use function dirname;
@@ -43,23 +43,25 @@ trait _FindClassesWithAttribute
 
             $finder->files()->in([$dirname . '/src/ApiResource', $dirname . '/src/Entity'])->name('*.php');
 
-            static $_helper = null;
+            if ($finder->count()) {
+                static $_helper = null;
 
-            if (null === $_helper) {
-                $_helper = new class {
-                    use _GetClassFromFile;
-                    use _LoadReflection;
-                };
-            }
+                if (null === $_helper) {
+                    $_helper = new class {
+                        use _LoadReflection;
+                        use Local\_GetClassFromFile;
+                    };
+                }
 
-            foreach ($finder as $file) {
-                $className = $requestCache->get(Context::CALLER_CLASS, $file->getRealPath(), fn () => $_helper->getClassFromFile($file->getRealPath()));
+                foreach ($finder as $file) {
+                    $className = $requestCache->get(Context::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath()));
 
-                if ($className && class_exists($className)) {
-                    $attributes = $_helper->loadReflection($className, $requestCache)->getAttributes(Mapped::class);
+                    if ($className && class_exists($className)) {
+                        $attributes = $_helper->loadReflection($className, $requestCache)->getAttributes(Mapped::class);
 
-                    if (!empty($attributes)) {
-                        $matchingClasses[] = $className;
+                        if (!empty($attributes)) {
+                            $matchingClasses[] = $className;
+                        }
                     }
                 }
             }

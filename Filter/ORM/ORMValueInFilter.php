@@ -28,9 +28,10 @@ use ReflectionNamedType;
 use ReflectionProperty;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Service\RequestCache;
+use Vairogs\Component\Mapper\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
@@ -84,6 +85,7 @@ class ORMValueInFilter extends AbstractFilter
 
         if (null === $_helper) {
             $_helper = new class {
+                use _LoadReflection;
                 use _MapFromAttribute;
             };
         }

@@ -21,10 +21,10 @@ use Symfony\Component\Serializer\Exception\ExceptionInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
-use Vairogs\Bundle\Constants\Context;
-use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function array_key_exists;
 use function is_object;
