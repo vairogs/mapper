@@ -110,7 +110,7 @@ class ORMValueInFilter extends AbstractFilter
                     return;
                 }
 
-                if ($this->mapper->isMappedType($typeAlias->getName(), MappingType::ENTITY, $context)) {
+                if ($this->mapper->isMappedType($typeAlias->getName(), MappingType::ENTITY)) {
                     $reflection = $_helper->loadReflection($typeAlias->getName(), $this->requestCache);
                 }
 

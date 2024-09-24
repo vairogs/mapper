@@ -22,6 +22,8 @@
         "api-platform/core": ">=3.2",
         "api-platform/metadata": "*",
         "api-platform/doctrine-orm": "*",
+        "api-platform/doctrine-common": "*",
+        "api-platform/openapi": "*",
         "api-platform/symfony": "*",
         "api-platform/state": "*",
         "doctrine/collections": "*",
@@ -31,6 +33,7 @@
         "symfony/config": "*",
         "symfony/dependency-injection": "*",
         "symfony/finder": "*",
+        "symfony/framework-bundle": "*",
         "symfony/http-kernel": "*",
         "symfony/property-access": "*",
         "symfony/property-info": "*",
@@ -44,7 +47,8 @@
         "symfony/uid": "*",
         "vairogs/bundle": "*",
         "vairogs/doctrine-tools": "*",
-        "vairogs/functions": "*"
+        "vairogs/functions": "*",
+        "psr/log": "*"
     },
     "suggest": {
         "symfony/mercure": "*"
