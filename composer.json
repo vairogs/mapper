@@ -45,6 +45,7 @@
         "symfony/translation-contracts": "*",
         "symfony/type-info": "*",
         "symfony/uid": "*",
+        "symfony/validator": "*",
         "vairogs/bundle": "*",
         "vairogs/doctrine-tools": "*",
         "vairogs/functions": "*",

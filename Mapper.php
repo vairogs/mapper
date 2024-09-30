@@ -29,6 +29,7 @@ use ApiPlatform\Metadata\Resource\Factory\ResourceMetadataCollectionFactoryInter
 use ApiPlatform\State\ProcessorInterface;
 use ApiPlatform\State\ProviderInterface;
 use ApiPlatform\Symfony\Security\Exception\AccessDeniedException;
+use ApiPlatform\Validator\Exception\ValidationException;
 use Countable;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -64,6 +65,7 @@ use Symfony\Component\TypeInfo\Type\CollectionType;
 use Symfony\Component\TypeInfo\Type\ObjectType;
 use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Component\Uid\Uuid;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Symfony\Contracts\Translation\TranslatorInterface;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
 use Vairogs\Component\Functions\Iteration;
@@ -114,6 +116,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         protected readonly ParameterBagInterface $bag,
         protected readonly RequestCache $requestCache,
         protected readonly Mercure $mercure,
+        protected readonly ValidatorInterface $validator,
         #[AutowireIterator(
             'api_platform.doctrine.orm.query_extension.collection',
         )]
@@ -402,6 +405,8 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
             $operation instanceof Put => $this->put($data, $operation, $context),
             default => throw new BadRequestHttpException(sprintf('Invalid operation: "%s"', $operation::class)),
         };
+
+        $this->validate($entity, $operation);
 
         $this->flush($entity, null !== $entity);
         $this->mercure->publishToMercure($entity, $operation);
@@ -710,7 +715,7 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
 
                 $open = false;
                 $att = $this->getApiResource($targetClass)->newInstance();
-                $ref = (new ReflectionClass($att))->getProperty('normalizationContext')->getValue($att);
+                $ref = $_helper->loadReflection($att, $this->requestCache)->getProperty('normalizationContext')->getValue($att);
 
                 if ($_helper->haveCommonElements($context['groups'], $ref['groups'])) {
                     $open = true;
@@ -1003,33 +1008,6 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     /**
      * @throws ReflectionException
      */
-    protected function getResourcePropertyNormalizationGroups(
-        ReflectionClass $reflection,
-        string $propertyName,
-    ): array {
-        $property = $reflection->getProperty($propertyName);
-        $groupAttributes = [];
-
-        if (class_exists(Serializer\Annotation\Groups::class)) {
-            $groupAttributes[] = $property->getAttributes(Serializer\Annotation\Groups::class);
-        }
-
-        if (class_exists(Serializer\Attribute\Groups::class)) {
-            $groupAttributes[] = $property->getAttributes(Serializer\Attribute\Groups::class);
-        }
-
-        $groupAttributes = array_merge(...$groupAttributes);
-
-        if (1 === count($groupAttributes)) {
-            return $groupAttributes[0]->getArguments()[0];
-        }
-
-        return [];
-    }
-
-    /**
-     * @throws ReflectionException
-     */
     protected function isCircularReference(
         string $targetClass,
         array $context,
@@ -1251,6 +1229,19 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
     ): void {
         if (null === $result) {
             throw new ItemNotFoundHttpException($rootAlias . ':' . $id);
+        }
+    }
+
+    protected function validate(
+        object $entity,
+        Operation $operation,
+    ): void {
+        if (!$operation instanceof Delete) {
+            $errors = $this->validator->validate($entity);
+
+            if (count($errors) > 0) {
+                throw new ValidationException($errors);
+            }
         }
     }
 }
