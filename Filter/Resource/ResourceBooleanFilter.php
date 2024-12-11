@@ -17,8 +17,8 @@ use ApiPlatform\Metadata\Operation;
 use Doctrine\ORM\QueryBuilder;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
+use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
-use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_merge;
 
@@ -40,16 +40,16 @@ class ResourceBooleanFilter extends AbstractResourceFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use _MapFromAttribute;
+                use Mapper\Traits\_MapFromAttribute;
             };
         }
 
-        (new BooleanFilter(
+        new BooleanFilter(
             $this->managerRegistry,
             $this->logger,
             $this->properties,
             $this->nameConverter,
-        ))->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache, skipGlobal: true), $operation, $context);
+        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache, skipGlobal: true), $operation, $context);
     }
 
     public function getDescription(

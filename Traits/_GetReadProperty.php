@@ -13,9 +13,9 @@ namespace Vairogs\Component\Mapper\Traits;
 
 use ApiPlatform\Metadata\ApiProperty;
 use ReflectionException;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Exception\MappingException;
-use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function is_object;
 
@@ -32,7 +32,7 @@ trait _GetReadProperty
             $class = $class::class;
         }
 
-        return $requestCache->get(Context::READ_PROPERTY, $class, static function () use ($class, $requestCache) {
+        return $requestCache->memoize(Context::READ_PROPERTY, $class, static function () use ($class, $requestCache) {
             $property = null;
 
             static $_helper = null;

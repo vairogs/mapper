@@ -12,8 +12,8 @@
 namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionException;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Service\RequestCache;
 
 trait _MapFromAttribute
 {
@@ -34,14 +34,16 @@ trait _MapFromAttribute
             };
         }
 
-        if (!$skipGlobal) {
-            $foundClasses = $requestCache->get(Context::CLASSES_WITH_ATTR, 'key', static fn () => $_helper->findClassesWithAttribute($requestCache));
+        $mapped = $_helper->mapMapped($objectOrClass, $requestCache);
+
+        if (!$skipGlobal && null === $mapped) {
+            $foundClasses = $requestCache->memoize(Context::CLASSES_WITH_ATTR, 'key', static fn () => $_helper->findClassesWithAttribute($requestCache));
 
             foreach ($foundClasses as $item) {
                 $_helper->mapMapped($item, $requestCache);
             }
         }
 
-        return $_helper->mapMapped($objectOrClass, $requestCache);
+        return $mapped;
     }
 }

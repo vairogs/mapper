@@ -12,7 +12,7 @@
 namespace Vairogs\Component\Mapper\Attribute;
 
 use Attribute;
-use Vairogs\Component\Functions\Local\_Exists;
+use Vairogs\Component\Functions\Local;
 
 use function count;
 use function is_callable;
@@ -59,7 +59,7 @@ class Modifier
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use _Exists;
+                    use Local\_Exists;
                 };
             }
 

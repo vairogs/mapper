@@ -13,18 +13,17 @@ namespace Vairogs\Component\Mapper\Filter\Resource;
 
 use ApiPlatform\Doctrine\Orm\Util\QueryNameGeneratorInterface;
 use ApiPlatform\Metadata\Operation;
+use ApiPlatform\OpenApi\Model\Parameter;
 use Doctrine\ORM\Mapping\ManyToMany;
 use Doctrine\ORM\Mapping\OneToMany;
 use Doctrine\ORM\QueryBuilder;
 use ReflectionException;
 use ReflectionProperty;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
+use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
 use Vairogs\Component\Mapper\Filter\ORM\ORMValueInFilter;
-use Vairogs\Component\Mapper\Traits\_GetReadProperty;
-use Vairogs\Component\Mapper\Traits\_LoadReflection;
-use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_map;
 use function array_merge;
@@ -49,18 +48,18 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use _MapFromAttribute;
+                use Mapper\Traits\_MapFromAttribute;
             };
         }
 
-        (new ORMValueInFilter(
+        new ORMValueInFilter(
             $this->managerRegistry,
             $this->requestCache,
             $this->logger,
             $this->properties,
             $this->nameConverter,
             $this->mapper,
-        ))->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
+        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
     }
 
     public function getDescription(
@@ -74,14 +73,15 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         foreach ($this->properties as $property => $unused) {
             foreach (['in' => '', 'notIn' => ' not'] as $type => $t) {
-                $description[sprintf('%s[%s]', $property, $type)] = [
-                    'property' => $this->normalizePropertyName($property),
-                    'type' => 'mixed',
-                    'required' => false,
-                    'description' => sprintf('Filter by multiple%s values -> Comma separated values, no spaces between values.', $t),
-                    'openapi' => [
-                        'example' => sprintf('status[%s]=DRAFT,RECEIVED, id[%s]=1,2,3', $type, $type),
-                    ],
+                $description[$name = sprintf('%s[%s]', $property, $type)] = [
+                    'openapi' => new Parameter(
+                        $name,
+                        'query',
+                        description: sprintf('Filter by multiple%s values -> Comma separated values, no spaces between values.', $t),
+                        required: false,
+                        schema: ['type' => 'mixed'],
+                        example: sprintf('status[%s]=DRAFT,RECEIVED, id[%s]=1,2,3', $type, $type),
+                    ),
                 ];
             }
         }
@@ -101,9 +101,9 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use _GetReadProperty;
-                use _LoadReflection;
-                use _MapFromAttribute;
+                use Mapper\Traits\_GetReadProperty;
+                use Mapper\Traits\_LoadReflection;
+                use Mapper\Traits\_MapFromAttribute;
             };
         }
 
@@ -120,16 +120,23 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
             if ('array' === $type) {
                 foreach ($items as $item => $property) {
-                    $rev = $_helper->mapFromAttribute($resourceClass, $this->requestCache);
-                    $pp = $_helper->loadReflection($rev, $this->requestCache)->getProperty($item);
-                    $orm = array_merge_recursive($pp->getAttributes(ManyToMany::class), $pp->getAttributes(OneToMany::class));
+                    /** @var ReflectionProperty $property */
+                    if (!$property->getType()?->isBuiltin()) {
+                        $rev = $_helper->mapFromAttribute($resourceClass, $this->requestCache);
+                        $pp = $_helper->loadReflection($rev, $this->requestCache)->getProperty($item);
+                        $orm = array_merge_recursive($pp->getAttributes(ManyToMany::class), $pp->getAttributes(OneToMany::class));
 
-                    if ([] !== $orm && $this->mapper->isMapped($targetEntity = $orm[0]->getArguments()['targetEntity'])) {
-                        $colRef = $_helper->loadReflection($_helper->mapFromAttribute($targetEntity, $this->requestCache), $this->requestCache);
-                        $rp = $_helper->getReadProperty($colRef->getName(), $this->requestCache);
-                        $filtered[] = [$name = $item . '.' . $rp => $name];
+                        if ([] !== $orm && $this->mapper->isMapped($targetEntity = $orm[0]->getArguments()['targetEntity'])) {
+                            $colRef = $_helper->loadReflection($_helper->mapFromAttribute($targetEntity, $this->requestCache), $this->requestCache);
+                            $rp = $_helper->getReadProperty($colRef->getName(), $this->requestCache);
+                            $filtered[] = [$name = $item . '.' . $rp => $name];
+                        }
+
+                        continue 2;
                     }
                 }
+
+                // $filtered[] = array_map(static fn (ReflectionProperty $property) => $property->getName(), $items);
 
                 continue;
             }

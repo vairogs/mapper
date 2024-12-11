@@ -17,12 +17,12 @@ use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
-use Vairogs\Component\Functions\Iteration\_HaveCommonElements;
+use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Component\Functions\Iteration;
+use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
-use Vairogs\Component\Mapper\Service\RequestCache;
-use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function array_merge;
 use function in_array;
@@ -44,14 +44,14 @@ class OperationRoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        return $this->requestCache->get(Context::SUPPORT_OPERATION, $subject, function () use ($subject, $attribute) {
+        return $this->requestCache->memoize(Context::SUPPORT_OPERATION, $subject, function () use ($subject, $attribute) {
             $result = false;
 
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use _LoadReflection;
+                    use Mapper\Traits\_LoadReflection;
                 };
             }
 
@@ -81,13 +81,13 @@ class OperationRoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        return $this->requestCache->get(Context::ALLOW_OPERATION, $subject, function () use ($subject, $token) {
+        return $this->requestCache->memoize(Context::ALLOW_OPERATION, $subject, function () use ($subject, $token) {
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use _HaveCommonElements;
-                    use _LoadReflection;
+                    use Iteration\_HaveCommonElements;
+                    use Mapper\Traits\_LoadReflection;
                 };
             }
 

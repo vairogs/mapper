@@ -13,10 +13,9 @@ namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionException;
 use Symfony\Component\Finder\Finder;
-use Vairogs\Component\Functions\Local;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Attribute\Mapped;
 use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function class_exists;
 use function dirname;
@@ -32,29 +31,25 @@ trait _FindClassesWithAttribute
     public function findClassesWithAttribute(
         RequestCache $requestCache,
     ): array {
-        return $requestCache->get(Context::FOUND_FILES, 'key', static function () use ($requestCache) {
+        return $requestCache->memoize(Context::FOUND_FILES, 'key', static function () use ($requestCache) {
             $matchingClasses = [];
             $finder = new Finder();
-            $dirname = dirname(getcwd());
+            $dirname = getcwd();
 
-            if ('cli' === PHP_SAPI) {
-                $dirname = getcwd();
+            if ('cli' !== PHP_SAPI) {
+                $dirname = dirname($dirname);
             }
 
             $finder->files()->in([$dirname . '/src/ApiResource', $dirname . '/src/Entity'])->name('*.php');
 
-            if ($finder->count()) {
-                static $_helper = null;
-
-                if (null === $_helper) {
-                    $_helper = new class {
-                        use _LoadReflection;
-                        use Local\_GetClassFromFile;
-                    };
-                }
+            if ($finder->hasResults()) {
+                $_helper = new class {
+                    use _GetClassFromFile;
+                    use _LoadReflection;
+                };
 
                 foreach ($finder as $file) {
-                    $className = $requestCache->get(Context::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath()));
+                    $className = $requestCache->memoize(Context::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath(), $requestCache));
 
                     if ($className && class_exists($className)) {
                         $attributes = $_helper->loadReflection($className, $requestCache)->getAttributes(Mapped::class);

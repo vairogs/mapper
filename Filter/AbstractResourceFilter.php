@@ -16,12 +16,14 @@ use Doctrine\Persistence\ManagerRegistry;
 use Psr\Log\LoggerInterface;
 use ReflectionException;
 use ReflectionUnionType;
+use Symfony\Component\PropertyAccess\PropertyAccess;
+use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
-use Vairogs\Component\Functions\Iteration\_AddElementIfNotExists;
+use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Component\Functions\Iteration;
+use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
-use Vairogs\Component\Mapper\Service\RequestCache;
-use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function array_key_exists;
 use function array_merge;
@@ -29,6 +31,7 @@ use function array_merge;
 abstract class AbstractResourceFilter implements FilterInterface
 {
     use Traits\_PropertyNameNormalizer;
+    protected readonly PropertyAccessor $accessor;
 
     public function __construct(
         protected readonly ManagerRegistry $managerRegistry,
@@ -38,6 +41,7 @@ abstract class AbstractResourceFilter implements FilterInterface
         protected readonly ?NameConverterInterface $nameConverter = null,
         protected readonly ?MapperInterface $mapper = null,
     ) {
+        $this->accessor = PropertyAccess::createPropertyAccessor();
     }
 
     abstract public function getPropertiesForType(
@@ -52,19 +56,32 @@ abstract class AbstractResourceFilter implements FilterInterface
     ): array {
         $requestCache = $this->requestCache;
 
-        return $this->requestCache->get(Context::RESOURCE_PROPERTIES, $resourceClass, static function () use ($resourceClass, $requestCache) {
+        return $this->requestCache->memoize(Context::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass, $requestCache) {
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use _AddElementIfNotExists;
-                    use _LoadReflection;
+                    use Iteration\_AddElementIfNotExists;
+                    use Mapper\Traits\_GetIgnore;
+                    use Mapper\Traits\_LoadReflection;
+                    use Mapper\Traits\_MapFromAttribute;
                 };
             }
 
             $properties = [];
 
+            $entityClass = $_helper->mapFromAttribute($resourceClass, $requestCache);
+            $entityReflection = $_helper->loadReflection($entityClass, $requestCache);
+
             foreach ($_helper->loadReflection($resourceClass, $requestCache)->getProperties() as $property) {
+                if ([] !== $_helper->getIgnore($property)) {
+                    continue;
+                }
+
+                if ($entityReflection->hasProperty($property->getName()) && [] !== $_helper->getIgnore($entityReflection->getProperty($property->getName()))) {
+                    continue;
+                }
+
                 $type = $property->getType();
 
                 if ($type instanceof ReflectionUnionType) {

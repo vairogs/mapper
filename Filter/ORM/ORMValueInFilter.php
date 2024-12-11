@@ -28,11 +28,10 @@ use ReflectionNamedType;
 use ReflectionProperty;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
+use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
-use Vairogs\Component\Mapper\Service\RequestCache;
-use Vairogs\Component\Mapper\Traits\_LoadReflection;
-use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
 use function array_map;
@@ -85,8 +84,8 @@ class ORMValueInFilter extends AbstractFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use _LoadReflection;
-                use _MapFromAttribute;
+                use Mapper\Traits\_LoadReflection;
+                use Mapper\Traits\_MapFromAttribute;
             };
         }
 
@@ -160,7 +159,7 @@ class ORMValueInFilter extends AbstractFilter
         string $propertyName,
     ): string {
         try {
-            $type = (new ReflectionProperty($object, $propertyName))->getType();
+            $type = new ReflectionProperty($object, $propertyName)->getType();
 
             if (!$type instanceof ReflectionNamedType || $type->isBuiltin()) {
                 throw new InvalidArgumentException('Not an enum');

@@ -17,16 +17,18 @@ use Doctrine\ORM\Exception\ORMException;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
+use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Serializer\Exception\ExceptionInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Constants\MappingType;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
-use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function array_key_exists;
+use function array_merge;
 use function is_object;
 
 #[Autoconfigure(lazy: true)]
@@ -38,6 +40,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
     public function __construct(
         private readonly MapperInterface $mapper,
         private readonly RequestCache $requestCache,
+        private readonly RequestStack $stack,
     ) {
     }
 
@@ -60,7 +63,8 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         ?string $format = null,
         array $context = [],
     ): float|array|ArrayObject|bool|int|string|null {
-        $resource = $this->requestCache->get(Context::ALREADY_NORMALIZED, $data::class, fn () => $this->mapper->toResource($data, $context), (string) $data->getId());
+        $context['groups'] = array_merge($context['groups'], $this->stack->getCurrentRequest()?->query->all('groups') ?? []);
+        $resource = $this->requestCache->memoize(Context::ALREADY_NORMALIZED, $data::class, fn () => $this->mapper->toResource($data, $context), false, (string) $data->getId());
         $context[Context::ENTITY_NORMALIZER->value] = true;
 
         return $this->normalizer->normalize($resource, $format, $context);

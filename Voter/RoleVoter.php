@@ -18,11 +18,11 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Iteration;
+use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Constants\Context;
 use Vairogs\Component\Mapper\Contracts\MapperInterface;
-use Vairogs\Component\Mapper\Service\RequestCache;
-use Vairogs\Component\Mapper\Traits\_LoadReflection;
 
 use function in_array;
 
@@ -43,12 +43,12 @@ class RoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        return $this->requestCache->get(Context::SUPPORT_ROLE, $subject, function () use ($subject) {
+        return $this->requestCache->memoize(Context::SUPPORT_ROLE, $subject, function () use ($subject) {
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use _LoadReflection;
+                    use Mapper\Traits\_LoadReflection;
                 };
             }
 
@@ -67,13 +67,13 @@ class RoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        return $this->requestCache->get(Context::ALLOW_ROLE, $subject, function () use ($subject, $token) {
+        return $this->requestCache->memoize(Context::ALLOW_ROLE, $subject, function () use ($subject, $token) {
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use _LoadReflection;
                     use Iteration\_HaveCommonElements;
+                    use Mapper\Traits\_LoadReflection;
                 };
             }
 

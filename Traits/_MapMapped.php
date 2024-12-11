@@ -12,9 +12,9 @@
 namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionException;
+use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Attribute\Mapped;
 use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Service\RequestCache;
 
 use function is_object;
 
@@ -31,7 +31,7 @@ trait _MapMapped
             $class = $class::class;
         }
 
-        return $requestCache->get(Context::MAP, $class, static function () use ($class, $requestCache) {
+        return $requestCache->memoize(Context::MAP, $class, static function () use ($class, $requestCache) {
             static $_helper = null;
 
             if (null === $_helper) {
@@ -46,7 +46,7 @@ trait _MapMapped
                 $attribute = $attributes[0]->newInstance();
 
                 if (null !== $attribute->reverse) {
-                    $requestCache->get(Context::MAP, $attribute->mapsTo, static fn () => $attribute->reverse);
+                    $requestCache->memoize(Context::MAP, $attribute->mapsTo, static fn () => $attribute->reverse);
                 }
 
                 return $attribute->mapsTo;
