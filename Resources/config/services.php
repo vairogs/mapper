@@ -10,6 +10,9 @@
  */
 
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Vairogs\Component\Mapper\OpenApi\OpenApiNormalizer;
+
+use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 
 return static function (
     ContainerConfigurator $container,
@@ -19,6 +22,10 @@ return static function (
     $services->defaults()
         ->autowire()
         ->autoconfigure();
+
+    $services->set(OpenApiNormalizer::class)->args([
+        service('.inner'),
+    ]);
 
     $services->load(namespace: 'Vairogs\\Component\\Mapper\\', resource: __DIR__ . '/../../*')
         ->exclude(excludes: [__DIR__ . '/../../{Entity,Resources,Exception,Voter}']);

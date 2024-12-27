@@ -27,6 +27,7 @@ use function array_key_exists;
 use function array_map;
 use function array_slice;
 use function ksort;
+use function stripos;
 
 use const JSON_PRETTY_PRINT;
 
@@ -45,7 +46,7 @@ readonly class AZEventSubscriber implements EventSubscriberInterface
 
         $contentType = $response->headers->get('Content-Type');
 
-        if (!$contentType || false === stripos($contentType, 'application/json') || !$response->getContent()) {
+        if (!$contentType || (false === stripos($contentType, 'application/json') && false === stripos($contentType, 'application/ld+json')) || !$response->getContent()) {
             return;
         }
 
