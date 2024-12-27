@@ -1089,18 +1089,14 @@ class Mapper implements ProviderInterface, ProcessorInterface, MapperInterface
         $type = $phpDoc->getType($object::class, $propertyName);
         $result = null;
 
-        if (null !== $type) {
-            $nonNullable = $type->asNonNullable();
+        if ($type instanceof CollectionType) {
+            $collectionValueType = $type->getCollectionValueType();
 
-            if ($nonNullable instanceof CollectionType) {
-                $collectionValueType = $nonNullable->getCollectionValueType();
-
-                if ($collectionValueType instanceof ObjectType) {
-                    if ($returnType) {
-                        $result = $collectionValueType->getClassName();
-                    } else {
-                        $result = $this->isMappedType($collectionValueType->getClassName(), MappingType::RESOURCE);
-                    }
+            if ($collectionValueType instanceof ObjectType) {
+                if ($returnType) {
+                    $result = $collectionValueType->getClassName();
+                } else {
+                    $result = $this->isMappedType($collectionValueType->getClassName(), MappingType::RESOURCE);
                 }
             }
         }
