@@ -14,8 +14,10 @@ namespace Vairogs\Component\Mapper\Traits;
 use ReflectionException;
 use Symfony\Component\Finder\Finder;
 use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Bundle\Traits\_GetClassFromFile;
+use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Attribute\Mapped;
-use Vairogs\Component\Mapper\Constants\Context;
+use Vairogs\Component\Mapper\Constants\MapperContext;
 
 use function class_exists;
 use function dirname;
@@ -31,7 +33,7 @@ trait _FindClassesWithAttribute
     public function findClassesWithAttribute(
         RequestCache $requestCache,
     ): array {
-        return $requestCache->memoize(Context::FOUND_FILES, 'key', static function () use ($requestCache) {
+        return $requestCache->memoize(MapperContext::FOUND_FILES, 'key', static function () use ($requestCache) {
             $matchingClasses = [];
             $finder = new Finder();
             $dirname = getcwd();
@@ -49,9 +51,9 @@ trait _FindClassesWithAttribute
                 };
 
                 foreach ($finder as $file) {
-                    $className = $requestCache->memoize(Context::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath(), $requestCache));
+                    $className = $requestCache->memoize(MapperContext::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath(), $requestCache));
 
-                    if ($className && class_exists($className)) {
+                    if ($className && class_exists($className) && class_exists(Mapped::class)) {
                         $attributes = $_helper->loadReflection($className, $requestCache)->getAttributes(Mapped::class);
 
                         if (!empty($attributes)) {

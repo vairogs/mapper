@@ -18,11 +18,11 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
+use Vairogs\Bundle\ApiPlatform\Functions;
 use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Functions\Iteration;
-use Vairogs\Component\Mapper;
-use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Constants\MapperContext;
 
 use function in_array;
 
@@ -30,7 +30,7 @@ use function in_array;
 class RoleVoter extends Voter
 {
     public function __construct(
-        private readonly MapperInterface $mapper,
+        private readonly Functions $functions,
         private readonly RequestCache $requestCache,
     ) {
     }
@@ -43,18 +43,18 @@ class RoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        return $this->requestCache->memoize(Context::SUPPORT_ROLE, $subject, function () use ($subject) {
+        return $this->requestCache->memoize(MapperContext::SUPPORT_ROLE, $subject, function () use ($subject) {
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use Mapper\Traits\_LoadReflection;
+                    use _LoadReflection;
                 };
             }
 
             $reflection = $_helper->loadReflection($subject, $this->requestCache);
 
-            return $this->mapper->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
+            return $this->functions->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
         });
     }
 
@@ -67,13 +67,13 @@ class RoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        return $this->requestCache->memoize(Context::ALLOW_ROLE, $subject, function () use ($subject, $token) {
+        return $this->requestCache->memoize(MapperContext::ALLOW_ROLE, $subject, function () use ($subject, $token) {
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
+                    use _LoadReflection;
                     use Iteration\_HaveCommonElements;
-                    use Mapper\Traits\_LoadReflection;
                 };
             }
 

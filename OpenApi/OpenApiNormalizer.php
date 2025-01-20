@@ -16,7 +16,7 @@ use Symfony\Component\DependencyInjection\Attribute\AsDecorator;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Functions\Text;
-use Vairogs\Component\Mapper\Constants\Context;
+use Vairogs\Component\Mapper\Constants\MapperContext;
 
 #[AsDecorator(decorates: 'api_platform.openapi.normalizer.api_gateway')]
 readonly class OpenApiNormalizer implements NormalizerInterface
@@ -63,7 +63,7 @@ readonly class OpenApiNormalizer implements NormalizerInterface
             };
         }
 
-        return $this->requestCache->memoize(Context::PLURAL, $word, static fn (): string => $_helper->pluralize($word));
+        return $this->requestCache->memoize(MapperContext::PLURAL, $word, static fn (): string => $_helper->pluralize($word));
     }
 
     protected function singularize(
@@ -77,6 +77,6 @@ readonly class OpenApiNormalizer implements NormalizerInterface
             };
         }
 
-        return $this->requestCache->memoize(Context::PLURAL, $word, static fn (): string => $_helper->singularize($word));
+        return $this->requestCache->memoize(MapperContext::PLURAL, $word, static fn (): string => $_helper->singularize($word));
     }
 }

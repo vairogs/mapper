@@ -20,10 +20,12 @@ use Doctrine\ORM\QueryBuilder;
 use ReflectionException;
 use ReflectionProperty;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
-use Vairogs\Component\Mapper;
-use Vairogs\Component\Mapper\Constants\MappingType;
+use Vairogs\Bundle\ApiPlatform\Constants\MappingType;
+use Vairogs\Bundle\Traits\_GetReadProperty;
+use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
 use Vairogs\Component\Mapper\Filter\ORM\ORMValueInFilter;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_map;
 use function array_merge;
@@ -48,7 +50,7 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use Mapper\Traits\_MapFromAttribute;
+                use _MapFromAttribute;
             };
         }
 
@@ -58,7 +60,7 @@ class ResourceValueInFilter extends AbstractResourceFilter
             $this->logger,
             $this->properties,
             $this->nameConverter,
-            $this->mapper,
+            $this->state,
         )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
     }
 
@@ -101,14 +103,14 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use Mapper\Traits\_GetReadProperty;
-                use Mapper\Traits\_LoadReflection;
-                use Mapper\Traits\_MapFromAttribute;
+                use _GetReadProperty;
+                use _LoadReflection;
+                use _MapFromAttribute;
             };
         }
 
         foreach ($this->getProperties($resourceClass) as $type => $items) {
-            if ($this->mapper->isMappedType($type, MappingType::RESOURCE)) {
+            if ($this->state->isMappedType($type, MappingType::RESOURCE)) {
                 $rp = $_helper->getReadProperty($type, $this->requestCache);
 
                 foreach ($items as $item => $unused) {
@@ -126,7 +128,7 @@ class ResourceValueInFilter extends AbstractResourceFilter
                         $pp = $_helper->loadReflection($rev, $this->requestCache)->getProperty($item);
                         $orm = array_merge_recursive($pp->getAttributes(ManyToMany::class), $pp->getAttributes(OneToMany::class));
 
-                        if ([] !== $orm && $this->mapper->isMapped($targetEntity = $orm[0]->getArguments()['targetEntity'])) {
+                        if ([] !== $orm && $this->state->isMapped($targetEntity = $orm[0]->getArguments()['targetEntity'])) {
                             $colRef = $_helper->loadReflection($_helper->mapFromAttribute($targetEntity, $this->requestCache), $this->requestCache);
                             $rp = $_helper->getReadProperty($colRef->getName(), $this->requestCache);
                             $filtered[] = [$name = $item . '.' . $rp => $name];

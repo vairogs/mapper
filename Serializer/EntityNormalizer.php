@@ -22,10 +22,10 @@ use Symfony\Component\Serializer\Exception\ExceptionInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
+use Vairogs\Bundle\ApiPlatform\Constants\MappingType;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Constants\MappingType;
-use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Constants\MapperContext;
+use Vairogs\Component\Mapper\State\State;
 
 use function array_key_exists;
 use function array_merge;
@@ -38,7 +38,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
     use NormalizerAwareTrait;
 
     public function __construct(
-        private readonly MapperInterface $mapper,
+        private readonly State $state,
         private readonly RequestCache $requestCache,
         private readonly RequestStack $stack,
     ) {
@@ -64,8 +64,8 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         array $context = [],
     ): float|array|ArrayObject|bool|int|string|null {
         $context['groups'] = array_merge($context['groups'], $this->stack->getCurrentRequest()?->query->all('groups') ?? []);
-        $resource = $this->requestCache->memoize(Context::ALREADY_NORMALIZED, $data::class, fn () => $this->mapper->toResource($data, $context), false, (string) $data->getId());
-        $context[Context::ENTITY_NORMALIZER->value] = true;
+        $resource = $this->requestCache->memoize(MapperContext::ALREADY_NORMALIZED, $data::class, fn () => $this->state->toResource($data, $context), false, (string) $data->getId());
+        $context[MapperContext::ENTITY_NORMALIZER->value] = true;
 
         return $this->normalizer->normalize($resource, $format, $context);
     }
@@ -78,10 +78,10 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         ?string $format = null,
         array $context = [],
     ): bool {
-        if (array_key_exists(Context::ENTITY_NORMALIZER->value, $context) || !is_object($data)) {
+        if (array_key_exists(MapperContext::ENTITY_NORMALIZER->value, $context) || !is_object($data)) {
             return false;
         }
 
-        return $this->mapper->isMappedType($data, MappingType::ENTITY);
+        return $this->state->isMappedType($data, MappingType::ENTITY);
     }
 }

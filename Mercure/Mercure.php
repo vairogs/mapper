@@ -18,7 +18,8 @@ use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Serializer;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Mapper;
+use Vairogs\Bundle\Traits\_LoadReflection;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function sprintf;
 
@@ -42,8 +43,8 @@ readonly class Mercure
 
             if (null === $_helper) {
                 $_helper = new class {
-                    use Mapper\Traits\_LoadReflection;
-                    use Mapper\Traits\_MapFromAttribute;
+                    use _LoadReflection;
+                    use _MapFromAttribute;
                 };
             }
 

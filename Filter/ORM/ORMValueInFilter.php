@@ -28,10 +28,11 @@ use ReflectionNamedType;
 use ReflectionProperty;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
+use Vairogs\Bundle\ApiPlatform\Constants\MappingType;
 use Vairogs\Bundle\Service\RequestCache;
-use Vairogs\Component\Mapper;
-use Vairogs\Component\Mapper\Constants\MappingType;
-use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Bundle\Traits\_LoadReflection;
+use Vairogs\Component\Mapper\State\State;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
 use function array_map;
@@ -49,7 +50,7 @@ class ORMValueInFilter extends AbstractFilter
         ?LoggerInterface $logger = null,
         ?array $properties = null,
         ?NameConverterInterface $nameConverter = null,
-        protected readonly ?MapperInterface $mapper = null,
+        protected readonly ?State $state = null,
     ) {
         parent::__construct($managerRegistry, $logger, $properties, $nameConverter);
     }
@@ -84,8 +85,8 @@ class ORMValueInFilter extends AbstractFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use Mapper\Traits\_LoadReflection;
-                use Mapper\Traits\_MapFromAttribute;
+                use _LoadReflection;
+                use _MapFromAttribute;
             };
         }
 
@@ -109,7 +110,7 @@ class ORMValueInFilter extends AbstractFilter
                     return;
                 }
 
-                if ($this->mapper->isMappedType($typeAlias->getName(), MappingType::ENTITY)) {
+                if ($this->state->isMappedType($typeAlias->getName(), MappingType::ENTITY)) {
                     $reflection = $_helper->loadReflection($typeAlias->getName(), $this->requestCache);
                 }
 

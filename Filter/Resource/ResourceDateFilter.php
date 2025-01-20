@@ -23,8 +23,8 @@ use Doctrine\ORM\QueryBuilder;
 use Exception;
 use ReflectionException;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
-use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_merge;
 use function date_default_timezone_get;
@@ -50,7 +50,7 @@ class ResourceDateFilter extends AbstractResourceFilter implements DateFilterInt
 
         if (null === $_helper) {
             $_helper = new class {
-                use Mapper\Traits\_MapFromAttribute;
+                use _MapFromAttribute;
             };
         }
 

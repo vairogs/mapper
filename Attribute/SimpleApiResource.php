@@ -32,10 +32,14 @@ use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpKernel\KernelInterface;
 use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Bundle\Traits\_GetClassFromFile;
+use Vairogs\Bundle\Traits\_GetReadProperty;
+use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Functions\Text;
-use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Mapper;
-use Vairogs\Component\Mapper\Traits;
+use Vairogs\Component\Mapper\Constants\MapperContext;
+use Vairogs\Component\Mapper\State\Processor;
+use Vairogs\Component\Mapper\State\Provider;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
 use function array_merge;
@@ -129,11 +133,11 @@ class SimpleApiResource extends ApiResource
 
         if (null === $_helper) {
             $_helper = new class {
+                use _GetClassFromFile;
+                use _GetReadProperty;
+                use _LoadReflection;
+                use _MapFromAttribute;
                 use Text\_SnakeCaseFromCamelCase;
-                use Traits\_GetClassFromFile;
-                use Traits\_GetReadProperty;
-                use Traits\_LoadReflection;
-                use Traits\_MapFromAttribute;
             };
         }
 
@@ -149,7 +153,7 @@ class SimpleApiResource extends ApiResource
             $requestCache ??= new RequestCache();
         }
 
-        $callerClass = $requestCache->memoize(Context::CALLER_CLASS, $file = debug_backtrace(limit: 1)[0]['file'], static fn () => $_helper->getClassFromFile($file, $requestCache));
+        $callerClass = $requestCache->memoize(MapperContext::CALLER_CLASS, $file = debug_backtrace(limit: 1)[0]['file'], static fn () => $_helper->getClassFromFile($file, $requestCache));
         $attributes = null;
 
         try {
@@ -177,13 +181,13 @@ class SimpleApiResource extends ApiResource
                 ];
             }
 
-            $files = $requestCache->memoize(Context::RESOURCE_FILES, 'key', static function () use ($_helper, $requestCache) {
+            $files = $requestCache->memoize(MapperContext::RESOURCE_FILES, 'key', static function () use ($_helper, $requestCache) {
                 $finder = new Finder();
                 $finder->files()->in(__DIR__ . '/../Filter/Resource/')->name('*.php');
                 $files = [];
 
                 foreach ($finder as $file) {
-                    $className = $requestCache->memoize(Context::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath(), $requestCache));
+                    $className = $requestCache->memoize(MapperContext::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath(), $requestCache));
 
                     if ($className && class_exists($className)) {
                         $reflection = $_helper->loadReflection($className, requestCache: $requestCache);
@@ -247,8 +251,8 @@ class SimpleApiResource extends ApiResource
                 'operations' => array_values($operations),
                 'order' => ['createdAt' => OrderFilterInterface::DIRECTION_DESC, ],
                 'shortName' => $newShortName,
-                'provider' => Mapper::class,
-                'processor' => Mapper::class,
+                'provider' => Provider::class,
+                'processor' => Processor::class,
                 'filters' => $filters,
             ];
 

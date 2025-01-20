@@ -20,10 +20,12 @@ use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
 use Vairogs\Bundle\Service\RequestCache;
+use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Functions\Iteration;
-use Vairogs\Component\Mapper;
-use Vairogs\Component\Mapper\Constants\Context;
-use Vairogs\Component\Mapper\Contracts\MapperInterface;
+use Vairogs\Component\Mapper\Constants\MapperContext;
+use Vairogs\Component\Mapper\State\State;
+use Vairogs\Component\Mapper\Traits\_GetIgnore;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_key_exists;
 use function array_merge;
@@ -39,7 +41,7 @@ abstract class AbstractResourceFilter implements FilterInterface
         protected readonly ?LoggerInterface $logger = null,
         protected ?array $properties = null,
         protected readonly ?NameConverterInterface $nameConverter = null,
-        protected readonly ?MapperInterface $mapper = null,
+        protected readonly ?State $state = null,
     ) {
         $this->accessor = PropertyAccess::createPropertyAccessor();
     }
@@ -56,15 +58,15 @@ abstract class AbstractResourceFilter implements FilterInterface
     ): array {
         $requestCache = $this->requestCache;
 
-        return $this->requestCache->memoize(Context::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass, $requestCache) {
+        return $this->requestCache->memoize(MapperContext::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass, $requestCache) {
             static $_helper = null;
 
             if (null === $_helper) {
                 $_helper = new class {
+                    use _GetIgnore;
+                    use _LoadReflection;
+                    use _MapFromAttribute;
                     use Iteration\_AddElementIfNotExists;
-                    use Mapper\Traits\_GetIgnore;
-                    use Mapper\Traits\_LoadReflection;
-                    use Mapper\Traits\_MapFromAttribute;
                 };
             }
 

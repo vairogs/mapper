@@ -17,8 +17,8 @@ use ApiPlatform\Metadata\Operation;
 use Doctrine\ORM\QueryBuilder;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
-use Vairogs\Component\Mapper;
 use Vairogs\Component\Mapper\Filter\AbstractResourceFilter;
+use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 
 use function array_merge;
 
@@ -40,7 +40,7 @@ class ResourceBooleanFilter extends AbstractResourceFilter
 
         if (null === $_helper) {
             $_helper = new class {
-                use Mapper\Traits\_MapFromAttribute;
+                use _MapFromAttribute;
             };
         }
 
