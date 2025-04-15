@@ -35,12 +35,12 @@
         "symfony/type-info": "*",
         "symfony/uid": "*",
         "symfony/validator": "*",
-        "vairogs/bundle": "*",
-        "vairogs/doctrine-tools": "*",
-        "vairogs/functions": "*",
-        "vairogs/functions-iteration": "*",
-        "vairogs/functions-local": "*",
-        "vairogs/functions-text": "*"
+        "vairogs/bundle": "self.version",
+        "vairogs/doctrine-tools": "self.version",
+        "vairogs/functions": "self.version",
+        "vairogs/functions-iteration": "self.version",
+        "vairogs/functions-local": "self.version",
+        "vairogs/functions-text": "self.version"
     },
     "conflict": {
         "api-platform/core": "<4.0.0",
