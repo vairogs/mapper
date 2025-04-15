@@ -35,11 +35,11 @@ use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_GetClassFromFile;
 use Vairogs\Bundle\Traits\_GetReadProperty;
 use Vairogs\Bundle\Traits\_LoadReflection;
-use Vairogs\Component\Functions\Text;
 use Vairogs\Component\Mapper\Constants\MapperContext;
 use Vairogs\Component\Mapper\State\Processor;
 use Vairogs\Component\Mapper\State\Provider;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
+use Vairogs\Functions\Text;
 
 use function array_key_exists;
 use function array_merge;
@@ -137,7 +137,7 @@ class SimpleApiResource extends ApiResource
                 use _GetReadProperty;
                 use _LoadReflection;
                 use _MapFromAttribute;
-                use Text\_SnakeCaseFromCamelCase;
+                use Text\Traits\_SnakeCaseFromCamelCase;
             };
         }
 

@@ -21,8 +21,8 @@ use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Vairogs\Bundle\ApiPlatform\Functions;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
-use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Constants\MapperContext;
+use Vairogs\Functions\Iteration;
 
 use function in_array;
 
@@ -73,7 +73,7 @@ class RoleVoter extends Voter
             if (null === $_helper) {
                 $_helper = new class {
                     use _LoadReflection;
-                    use Iteration\_HaveCommonElements;
+                    use Iteration\Traits\_HaveCommonElements;
                 };
             }
 

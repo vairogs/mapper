@@ -29,15 +29,15 @@ final readonly class MapperOperation
         Delete::class,
     ];
 
-    public const array OPERATION_GET = [
-        Get::class,
-        GetCollection::class,
-    ];
-
     public const array OPERATION_EDIT = [
         Post::class,
         Patch::class,
         Put::class,
         Delete::class,
+    ];
+
+    public const array OPERATION_GET = [
+        Get::class,
+        GetCollection::class,
     ];
 }

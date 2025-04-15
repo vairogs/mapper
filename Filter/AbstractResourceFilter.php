@@ -21,11 +21,11 @@ use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
-use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Constants\MapperContext;
 use Vairogs\Component\Mapper\State\State;
 use Vairogs\Component\Mapper\Traits\_GetIgnore;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
+use Vairogs\Functions\Iteration;
 
 use function array_key_exists;
 use function array_merge;
@@ -66,7 +66,7 @@ abstract class AbstractResourceFilter implements FilterInterface
                     use _GetIgnore;
                     use _LoadReflection;
                     use _MapFromAttribute;
-                    use Iteration\_AddElementIfNotExists;
+                    use Iteration\Traits\_AddElementIfNotExists;
                 };
             }
 

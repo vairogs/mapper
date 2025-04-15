@@ -1,36 +1,22 @@
 {
     "name": "vairogs/mapper",
-    "type": "library",
     "license": "BSD-3-Clause",
-    "autoload": {
-        "psr-4": {
-            "Vairogs\\Component\\Mapper\\": ""
-        }
-    },
-    "minimum-stability": "dev",
-    "prefer-stable": false,
-    "config": {
-        "sort-packages": true
-    },
-    "extra": {
-        "branch-alias": {
-            "dev-master": "0.1.x-dev"
-        }
-    },
+    "type": "library",
     "require": {
         "php": ">=8.4",
-        "api-platform/core": ">=3.2",
-        "api-platform/metadata": "*",
-        "api-platform/doctrine-orm": "*",
+        "api-platform/core": "*",
         "api-platform/doctrine-common": "*",
+        "api-platform/doctrine-orm": "*",
+        "api-platform/metadata": "*",
         "api-platform/openapi": "*",
-        "api-platform/symfony": "*",
         "api-platform/state": "*",
+        "api-platform/symfony": "*",
         "api-platform/validator": "*",
         "doctrine/collections": "*",
         "doctrine/dbal": "*",
         "doctrine/orm": "*",
         "doctrine/persistence": "*",
+        "psr/log": "*",
         "symfony/config": "*",
         "symfony/dependency-injection": "*",
         "symfony/event-dispatcher": "*",
@@ -52,12 +38,30 @@
         "vairogs/bundle": "*",
         "vairogs/doctrine-tools": "*",
         "vairogs/functions": "*",
-        "psr/log": "*"
+        "vairogs/functions-iteration": "*",
+        "vairogs/functions-local": "*",
+        "vairogs/functions-text": "*"
+    },
+    "conflict": {
+        "api-platform/core": "<4.0.0",
+        "doctrine/dbal": "<4.0"
     },
     "suggest": {
         "symfony/mercure": "*"
     },
-    "conflict": {
-        "doctrine/dbal": "<4.0"
+    "minimum-stability": "dev",
+    "prefer-stable": false,
+    "autoload": {
+        "psr-4": {
+            "Vairogs\\Component\\Mapper\\": ""
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "0.1.x-dev"
+        }
     }
 }

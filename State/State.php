@@ -39,7 +39,6 @@ use Vairogs\Bundle\ApiPlatform\Functions;
 use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_GetReadProperty;
 use Vairogs\Bundle\Traits\_LoadReflection;
-use Vairogs\Component\Functions\Iteration;
 use Vairogs\Component\Mapper\Attribute\Mapped;
 use Vairogs\Component\Mapper\Attribute\Modifier;
 use Vairogs\Component\Mapper\Attribute\OnDeny;
@@ -50,6 +49,7 @@ use Vairogs\Component\Mapper\Constants\MapperOperation;
 use Vairogs\Component\Mapper\Exception\MappingException;
 use Vairogs\Component\Mapper\Traits\_GetIgnore;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
+use Vairogs\Functions\Iteration;
 
 use function array_key_exists;
 use function class_exists;
@@ -333,8 +333,8 @@ class State
                 use _GetReadProperty;
                 use _LoadReflection;
                 use _MapFromAttribute;
-                use Iteration\_AddElementIfNotExists;
-                use Iteration\_HaveCommonElements;
+                use Iteration\Traits\_AddElementIfNotExists;
+                use Iteration\Traits\_HaveCommonElements;
             };
         }
 
