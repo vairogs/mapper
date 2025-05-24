@@ -47,7 +47,7 @@ final class MapperConfiguration extends AbstractDependencyConfiguration
         ContainerBuilder $builder,
         string $component,
     ): void {
-        $container->import(__DIR__ . '/../Resources/config/services.php');
+        parent::registerConfiguration($container, $builder, $component);
 
         if (VairogsBundle::p($builder, $component, 'voters.role_voter')) {
             $container->import(__DIR__ . '/../Resources/config/voters/role.php');
