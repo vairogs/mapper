@@ -40,7 +40,6 @@ use Symfony\Component\TypeInfo\TypeIdentifier;
 use Symfony\Component\Validator\Validator\ValidatorInterface;
 use Vairogs\Bundle\ApiPlatform\Constants\MappingType;
 use Vairogs\Bundle\ApiPlatform\Functions;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_GetReadProperty;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\DoctrineTools\UTCDateTimeImmutable;
@@ -49,6 +48,7 @@ use Vairogs\Component\Mapper\Exception\MappingException;
 use Vairogs\Component\Mapper\Mercure\Mercure;
 use Vairogs\Component\Mapper\Traits\_GetIgnore;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function array_key_exists;
 use function count;
@@ -68,13 +68,13 @@ class Processor extends State implements ProcessorInterface
         protected readonly ValidatorInterface $validator,
         AuthorizationCheckerInterface $security,
         EntityManagerInterface $entityManager,
-        RequestCache $requestCache,
+        MemoizeCache $memoize,
         Functions $functions,
     ) {
         parent::__construct(
             $security,
             $entityManager,
-            $requestCache,
+            $memoize,
             $functions,
         );
     }
@@ -86,7 +86,7 @@ class Processor extends State implements ProcessorInterface
         object $object,
         string $propertyName,
     ): bool {
-        return $this->requestCache->memoize(MapperContext::IS_READ_PROP, $propertyName, fn () => (bool) $this->processRelationProperty($object, $propertyName));
+        return $this->memoize->memoize(MapperContext::IS_READ_PROP, $propertyName, fn () => (bool) $this->processRelationProperty($object, $propertyName));
     }
 
     /**
@@ -151,8 +151,8 @@ class Processor extends State implements ProcessorInterface
             $context['groups'] = [];
         }
 
-        $reflection = $_helper->loadReflection($object, $this->requestCache);
-        $targetEntityClass = $_helper->mapFromAttribute($reflection->getName(), $this->requestCache);
+        $reflection = $_helper->loadReflection($object, $this->memoize);
+        $targetEntityClass = $_helper->mapFromAttribute($reflection->getName(), $this->memoize);
 
         $properties = $reflection->getProperties();
         $output = $existingEntity ?? new $targetEntityClass();
@@ -199,11 +199,11 @@ class Processor extends State implements ProcessorInterface
                 }
 
                 $propertyClass = $propertyValue[0]::class;
-                $targetClass = $_helper->mapFromAttribute($propertyClass, $this->requestCache);
+                $targetClass = $_helper->mapFromAttribute($propertyClass, $this->memoize);
                 $collection = new ArrayCollection();
 
                 foreach ($propertyValue as $value) {
-                    $rp = $_helper->getReadProperty($propertyClass, $this->requestCache);
+                    $rp = $_helper->getReadProperty($propertyClass, $this->memoize);
 
                     if (isset($value->{$rp})) {
                         if (null === ($entity = $this->find($targetClass, $value->{$rp}))) {
@@ -224,8 +224,8 @@ class Processor extends State implements ProcessorInterface
             }
 
             if ($this->isMappedType($propertyType, MappingType::RESOURCE)) {
-                $targetClass = $_helper->mapFromAttribute($propertyType, $this->requestCache);
-                $rp = $_helper->getReadProperty($propertyType, $this->requestCache);
+                $targetClass = $_helper->mapFromAttribute($propertyType, $this->memoize);
+                $rp = $_helper->getReadProperty($propertyType, $this->memoize);
 
                 if (null !== $propertyValue?->{$rp}) {
                     if (null === ($entity = $this->find($targetClass, $propertyValue->{$rp}))) {
@@ -290,10 +290,10 @@ class Processor extends State implements ProcessorInterface
 
                 $firstSet = $value1->getValues();
                 $secondSet = $value2;
-                $rp = $_helper->getReadProperty($secondSet[0], $this->requestCache);
+                $rp = $_helper->getReadProperty($secondSet[0], $this->memoize);
 
                 for ($i = 0, $iMax = count($firstSet); $i < $iMax; $i++) {
-                    $classesAreEqual = get_class($firstSet[$i]) === $_helper->mapFromAttribute($secondSet[$i], $this->requestCache);
+                    $classesAreEqual = get_class($firstSet[$i]) === $_helper->mapFromAttribute($secondSet[$i], $this->memoize);
                     $idsAreEqual = $secondSet[$i]->{$rp} === $this->getValue($firstSet[$i], $rp);
 
                     if (!$classesAreEqual || !$idsAreEqual) {
@@ -324,7 +324,7 @@ class Processor extends State implements ProcessorInterface
             };
         }
 
-        $existingEntity = $this->find($this->getEntityClass($operation), $resource->{$_helper->getReadProperty($operation->getClass(), $this->requestCache)});
+        $existingEntity = $this->find($this->getEntityClass($operation), $resource->{$_helper->getReadProperty($operation->getClass(), $this->memoize)});
 
         $this->entityManager->remove($existingEntity);
 
@@ -368,7 +368,7 @@ class Processor extends State implements ProcessorInterface
             };
         }
 
-        $existingEntity = $this->find($this->getEntityClass($operation), $resource->{$_helper->getReadProperty($operation->getClass(), $this->requestCache)});
+        $existingEntity = $this->find($this->getEntityClass($operation), $resource->{$_helper->getReadProperty($operation->getClass(), $this->memoize)});
 
         return $this->toEntity($resource, $context, $existingEntity);
     }
@@ -404,7 +404,7 @@ class Processor extends State implements ProcessorInterface
             };
         }
 
-        $existingEntity = $this->find($this->getEntityClass($operation), $resource->{$_helper->getReadProperty($operation->getClass(), $this->requestCache)});
+        $existingEntity = $this->find($this->getEntityClass($operation), $resource->{$_helper->getReadProperty($operation->getClass(), $this->memoize)});
 
         $entity = $this->toEntity($resource, $context, clone $existingEntity);
         $this->entityManager->persist($entity);
@@ -425,7 +425,7 @@ class Processor extends State implements ProcessorInterface
         }
 
         try {
-            $type = $_helper->loadReflection($object, $this->requestCache)->getProperty($property)->getType()?->getName();
+            $type = $_helper->loadReflection($object, $this->memoize)->getProperty($property)->getType()?->getName();
         } catch (ReflectionException) {
             return;
         }

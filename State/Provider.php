@@ -24,21 +24,28 @@ use ApiPlatform\Metadata\Operation;
 use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
+use ApiPlatform\State\Pagination\PaginatorInterface;
 use ApiPlatform\State\ProviderInterface;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Exception\ORMException;
 use Doctrine\ORM\QueryBuilder;
+use IteratorAggregate;
 use ReflectionException;
 use Symfony\Component\DependencyInjection\Attribute\AutowireIterator;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\Security\Core\Authorization\AuthorizationCheckerInterface;
+use Traversable;
 use Vairogs\Bundle\ApiPlatform\Functions;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_GetReadProperty;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Exception\ItemNotFoundHttpException;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
+use function ceil;
+use function count;
 use function sprintf;
 use function strtolower;
 
@@ -46,7 +53,7 @@ class Provider extends State implements ProviderInterface
 {
     public function __construct(
         AuthorizationCheckerInterface $security,
-        RequestCache $requestCache,
+        MemoizeCache $memoize,
         EntityManagerInterface $entityManager,
         Functions $functions,
         #[AutowireIterator(
@@ -57,7 +64,7 @@ class Provider extends State implements ProviderInterface
         parent::__construct(
             $security,
             $entityManager,
-            $requestCache,
+            $memoize,
             $functions,
         );
     }
@@ -81,7 +88,7 @@ class Provider extends State implements ProviderInterface
             };
         }
 
-        $class = $_helper->loadReflection($operation->getClass(), $this->requestCache);
+        $class = $_helper->loadReflection($operation->getClass(), $this->memoize);
 
         if (!$this->security->isGranted($operation::class, $class->getName())) {
             throw new AccessDeniedHttpException('Access denied');
@@ -93,7 +100,7 @@ class Provider extends State implements ProviderInterface
             $operation instanceof Get,
             $operation instanceof Patch,
             $operation instanceof Put,
-            $operation instanceof Post => $this->getItem($operation, $uriVariables[$_helper->getReadProperty($operation->getClass(), $this->requestCache)], $context),
+            $operation instanceof Post => $this->getItem($operation, $uriVariables[$_helper->getReadProperty($operation->getClass(), $this->memoize)], $context),
             default => throw new BadRequestHttpException(sprintf('Invalid operation: "%s"', $operation::class)),
         };
     }
@@ -129,6 +136,8 @@ class Provider extends State implements ProviderInterface
 
     /**
      * @throws ReflectionException
+     * @throws ResourceClassNotFoundException
+     * @throws ORMException
      */
     protected function getCollection(
         Operation $operation,
@@ -136,7 +145,61 @@ class Provider extends State implements ProviderInterface
     ): array|object {
         $queryBuilder = $this->entityManager->createQueryBuilder()->select('m')->from($this->getEntityClass($operation), 'm');
 
-        return $this->applyFilterExtensionsToCollection($queryBuilder, new QueryNameGenerator(), $operation, $context);
+        $response = $this->applyFilterExtensionsToCollection($queryBuilder, new QueryNameGenerator(), $operation, $context);
+
+        $collection = new ArrayCollection();
+
+        if ($response instanceof PaginatorInterface) {
+            $values = $response->getIterator();
+            $totalItems = $response->getTotalItems();
+        } else {
+            $values = $response;
+            $totalItems = (float) count($values);
+        }
+
+        foreach ($values as $entity) {
+            $collection->add($this->toResource($entity, $context));
+        }
+
+        return new readonly class($collection, $totalItems, (int) ($context['filters']['itemsPerPage'] ?? 30), (int) ($context['filters']['page'] ?? 1)) implements IteratorAggregate, PaginatorInterface {
+            public function __construct(
+                private Collection $items,
+                private float $totalItems,
+                private int $itemsPerPage,
+                private int $currentPage,
+            ) {
+            }
+
+            public function getIterator(): Traversable
+            {
+                return $this->items->getIterator();
+            }
+
+            public function count(): int
+            {
+                return $this->items->count();
+            }
+
+            public function getTotalItems(): float
+            {
+                return $this->totalItems;
+            }
+
+            public function getCurrentPage(): float
+            {
+                return (float) $this->currentPage;
+            }
+
+            public function getLastPage(): float
+            {
+                return ceil($this->totalItems / $this->itemsPerPage);
+            }
+
+            public function getItemsPerPage(): float
+            {
+                return (float) $this->itemsPerPage;
+            }
+        };
     }
 
     /**
@@ -159,7 +222,7 @@ class Provider extends State implements ProviderInterface
 
         $entity = $this->find($entityClass = $this->getEntityClass($operation), $id);
 
-        $this->throwErrorIfNotExist($entity, strtolower($_helper->loadReflection($entityClass, $this->requestCache)->getShortName()), $id);
+        $this->throwErrorIfNotExist($entity, strtolower($_helper->loadReflection($entityClass, $this->memoize)->getShortName()), $id);
 
         return $this->toResource($entity, $context);
     }

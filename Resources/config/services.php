@@ -9,6 +9,7 @@
  * file that was distributed with this source code.
  */
 
+use ApiPlatform\Serializer\Filter\GroupFilter;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Vairogs\Component\Mapper\OpenApi\OpenApiNormalizer;
 
@@ -29,4 +30,6 @@ return static function (
 
     $services->load(namespace: 'Vairogs\\Component\\Mapper\\', resource: __DIR__ . '/../../*')
         ->exclude(excludes: [__DIR__ . '/../../{Entity,Resources,Exception,Voter}']);
+
+    $services->set(GroupFilter::class);
 };

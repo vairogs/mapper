@@ -12,10 +12,10 @@
 namespace Vairogs\Component\Mapper\Traits;
 
 use ReflectionException;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Attribute\Mapped;
 use Vairogs\Component\Mapper\Constants\MapperContext;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function is_object;
 
@@ -26,13 +26,13 @@ trait _MapMapped
      */
     public function mapMapped(
         object|string $class,
-        RequestCache $requestCache,
+        MemoizeCache $memoize,
     ): ?string {
         if (is_object($class)) {
             $class = $class::class;
         }
 
-        return $requestCache->memoize(MapperContext::MAP, $class, static function () use ($class, $requestCache) {
+        return $memoize->memoize(MapperContext::MAP, $class, static function () use ($class, $memoize) {
             static $_helper = null;
 
             if (null === $_helper) {
@@ -41,13 +41,13 @@ trait _MapMapped
                 };
             }
 
-            $reflection = $_helper->loadReflection($class, $requestCache);
+            $reflection = $_helper->loadReflection($class, $memoize);
 
             if ([] !== ($attributes = $reflection->getAttributes(Mapped::class))) {
                 $attribute = $attributes[0]->newInstance();
 
                 if (null !== $attribute->reverse) {
-                    $requestCache->memoize(MapperContext::MAP, $attribute->mapsTo, static fn () => $attribute->reverse);
+                    $memoize->memoize(MapperContext::MAP, $attribute->mapsTo, static fn () => $attribute->reverse);
                 }
 
                 return $attribute->mapsTo;

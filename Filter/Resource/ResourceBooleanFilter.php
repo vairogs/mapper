@@ -49,7 +49,7 @@ class ResourceBooleanFilter extends AbstractResourceFilter
             $this->logger,
             $this->properties,
             $this->nameConverter,
-        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache, skipGlobal: true), $operation, $context);
+        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->memoize, skipGlobal: true), $operation, $context);
     }
 
     public function getDescription(

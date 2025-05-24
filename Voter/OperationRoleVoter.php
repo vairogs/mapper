@@ -18,11 +18,11 @@ use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Vairogs\Bundle\ApiPlatform\Functions;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Attribute\GrantedOperation;
 use Vairogs\Component\Mapper\Constants\MapperContext;
 use Vairogs\Functions\Iteration;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function array_merge;
 use function in_array;
@@ -32,7 +32,7 @@ class OperationRoleVoter extends Voter
 {
     public function __construct(
         private readonly Functions $functions,
-        private readonly RequestCache $requestCache,
+        private readonly MemoizeCache $memoize,
     ) {
     }
 
@@ -44,7 +44,7 @@ class OperationRoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        return $this->requestCache->memoize(MapperContext::SUPPORT_OPERATION, $subject, function () use ($subject, $attribute) {
+        return $this->memoize->memoize(MapperContext::SUPPORT_OPERATION, $subject, function () use ($subject, $attribute) {
             $result = false;
 
             static $_helper = null;
@@ -55,7 +55,7 @@ class OperationRoleVoter extends Voter
                 };
             }
 
-            $reflection = $_helper->loadReflection($subject, $this->requestCache);
+            $reflection = $_helper->loadReflection($subject, $this->memoize);
             $check = $this->functions->isResource($reflection->getName()) && [] !== $reflection->getAttributes(GrantedOperation::class);
 
             if ($check) {
@@ -81,7 +81,7 @@ class OperationRoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        return $this->requestCache->memoize(MapperContext::ALLOW_OPERATION, $subject, function () use ($subject, $token) {
+        return $this->memoize->memoize(MapperContext::ALLOW_OPERATION, $subject, function () use ($subject, $token) {
             static $_helper = null;
 
             if (null === $_helper) {
@@ -91,7 +91,7 @@ class OperationRoleVoter extends Voter
                 };
             }
 
-            $reflection = $_helper->loadReflection($subject, $this->requestCache);
+            $reflection = $_helper->loadReflection($subject, $this->memoize);
             $allowedRoles = [];
 
             foreach ($reflection->getAttributes(GrantedOperation::class) as $item) {

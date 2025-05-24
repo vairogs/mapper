@@ -19,10 +19,10 @@ use Symfony\Component\Security\Core\Authorization\Voter\AuthenticatedVoter;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 use Symfony\Component\Security\Http\Attribute\IsGranted;
 use Vairogs\Bundle\ApiPlatform\Functions;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Constants\MapperContext;
 use Vairogs\Functions\Iteration;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function in_array;
 
@@ -31,7 +31,7 @@ class RoleVoter extends Voter
 {
     public function __construct(
         private readonly Functions $functions,
-        private readonly RequestCache $requestCache,
+        private readonly MemoizeCache $memoize,
     ) {
     }
 
@@ -43,7 +43,7 @@ class RoleVoter extends Voter
         string $attribute,
         mixed $subject,
     ): bool {
-        return $this->requestCache->memoize(MapperContext::SUPPORT_ROLE, $subject, function () use ($subject) {
+        return $this->memoize->memoize(MapperContext::SUPPORT_ROLE, $subject, function () use ($subject) {
             static $_helper = null;
 
             if (null === $_helper) {
@@ -52,7 +52,7 @@ class RoleVoter extends Voter
                 };
             }
 
-            $reflection = $_helper->loadReflection($subject, $this->requestCache);
+            $reflection = $_helper->loadReflection($subject, $this->memoize);
 
             return $this->functions->isResource($reflection->getName()) && [] !== $reflection->getAttributes(IsGranted::class);
         });
@@ -67,7 +67,7 @@ class RoleVoter extends Voter
         mixed $subject,
         TokenInterface $token,
     ): bool {
-        return $this->requestCache->memoize(MapperContext::ALLOW_ROLE, $subject, function () use ($subject, $token) {
+        return $this->memoize->memoize(MapperContext::ALLOW_ROLE, $subject, function () use ($subject, $token) {
             static $_helper = null;
 
             if (null === $_helper) {
@@ -77,7 +77,7 @@ class RoleVoter extends Voter
                 };
             }
 
-            $reflection = $_helper->loadReflection($subject, $this->requestCache);
+            $reflection = $_helper->loadReflection($subject, $this->memoize);
             $allowedRoles = [];
 
             foreach ($reflection->getAttributes(IsGranted::class) as $item) {

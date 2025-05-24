@@ -15,7 +15,6 @@ use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use ArrayObject;
 use Doctrine\ORM\Exception\ORMException;
 use ReflectionException;
-use Symfony\Component\DependencyInjection\Attribute\Autoconfigure;
 use Symfony\Component\DependencyInjection\Attribute\AutoconfigureTag;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\Serializer\Exception\ExceptionInterface;
@@ -23,15 +22,14 @@ use Symfony\Component\Serializer\Normalizer\NormalizerAwareInterface;
 use Symfony\Component\Serializer\Normalizer\NormalizerAwareTrait;
 use Symfony\Component\Serializer\Normalizer\NormalizerInterface;
 use Vairogs\Bundle\ApiPlatform\Constants\MappingType;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Component\Mapper\Constants\MapperContext;
 use Vairogs\Component\Mapper\State\State;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function array_key_exists;
 use function array_merge;
 use function is_object;
 
-#[Autoconfigure(lazy: true)]
 #[AutoconfigureTag('serializer.normalizer')]
 class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
 {
@@ -39,7 +37,7 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
 
     public function __construct(
         private readonly State $state,
-        private readonly RequestCache $requestCache,
+        private readonly MemoizeCache $memoize,
         private readonly RequestStack $stack,
     ) {
     }
@@ -64,10 +62,10 @@ class EntityNormalizer implements NormalizerInterface, NormalizerAwareInterface
         array $context = [],
     ): float|array|ArrayObject|bool|int|string|null {
         $context['groups'] = array_merge($context['groups'], $this->stack->getCurrentRequest()?->query->all('groups') ?? []);
-        $resource = $this->requestCache->memoize(MapperContext::ALREADY_NORMALIZED, $data::class, fn () => $this->state->toResource($data, $context), false, (string) $data->getId());
+        $data = $this->memoize->memoize(MapperContext::ALREADY_NORMALIZED, $data::class, fn () => $this->state->toResource($data, $context), false, (string) $data->getId());
         $context[MapperContext::ENTITY_NORMALIZER->value] = true;
 
-        return $this->normalizer->normalize($resource, $format, $context);
+        return $this->normalizer->normalize($data, $format, $context);
     }
 
     /**

@@ -19,13 +19,13 @@ use ReflectionUnionType;
 use Symfony\Component\PropertyAccess\PropertyAccess;
 use Symfony\Component\PropertyAccess\PropertyAccessor;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Constants\MapperContext;
 use Vairogs\Component\Mapper\State\State;
 use Vairogs\Component\Mapper\Traits\_GetIgnore;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 use Vairogs\Functions\Iteration;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function array_key_exists;
 use function array_merge;
@@ -37,7 +37,7 @@ abstract class AbstractResourceFilter implements FilterInterface
 
     public function __construct(
         protected readonly ManagerRegistry $managerRegistry,
-        protected readonly RequestCache $requestCache,
+        protected readonly MemoizeCache $memoize,
         protected readonly ?LoggerInterface $logger = null,
         protected ?array $properties = null,
         protected readonly ?NameConverterInterface $nameConverter = null,
@@ -56,9 +56,7 @@ abstract class AbstractResourceFilter implements FilterInterface
     public function getProperties(
         string $resourceClass,
     ): array {
-        $requestCache = $this->requestCache;
-
-        return $this->requestCache->memoize(MapperContext::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass, $requestCache) {
+        return $this->memoize->memoize(MapperContext::RESOURCE_PROPERTIES, $resourceClass, function () use ($resourceClass) {
             static $_helper = null;
 
             if (null === $_helper) {
@@ -72,10 +70,10 @@ abstract class AbstractResourceFilter implements FilterInterface
 
             $properties = [];
 
-            $entityClass = $_helper->mapFromAttribute($resourceClass, $requestCache);
-            $entityReflection = $_helper->loadReflection($entityClass, $requestCache);
+            $entityClass = $_helper->mapFromAttribute($resourceClass, $this->memoize);
+            $entityReflection = $_helper->loadReflection($entityClass, $this->memoize);
 
-            foreach ($_helper->loadReflection($resourceClass, $requestCache)->getProperties() as $property) {
+            foreach ($_helper->loadReflection($resourceClass, $this->memoize)->getProperties() as $property) {
                 if ([] !== $_helper->getIgnore($property)) {
                     continue;
                 }

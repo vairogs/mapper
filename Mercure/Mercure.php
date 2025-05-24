@@ -17,9 +17,9 @@ use ApiPlatform\State\SerializerContextBuilderInterface;
 use Symfony\Component\Mercure\HubInterface;
 use Symfony\Component\Mercure\Update;
 use Symfony\Component\Serializer;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function sprintf;
 
@@ -29,7 +29,7 @@ readonly class Mercure
         protected UrlGeneratorInterface $urlGenerator,
         protected Serializer\SerializerInterface $serializer,
         protected SerializerContextBuilderInterface $serializerContextBuilder,
-        protected RequestCache $requestCache,
+        protected MemoizeCache $memoize,
         protected ?HubInterface $hub = null,
     ) {
     }
@@ -51,17 +51,17 @@ readonly class Mercure
             $topic = sprintf(
                 '%s/api/%s/%s',
                 $this->urlGenerator->generate('api_entrypoint', [], UrlGeneratorInterface::ABS_URL),
-                $_helper->mapFromAttribute($entity, $this->requestCache),
+                $_helper->mapFromAttribute($entity, $this->memoize),
                 $entity->getId(),
             );
 
-            $resource = $_helper->mapFromAttribute($entity, $this->requestCache);
+            $resource = $_helper->mapFromAttribute($entity, $this->memoize);
 
             $context = [
                 'operation' => $operation,
                 'resource_class' => $operation->getClass(),
                 'item_operation_name' => $operation->getName(),
-                'groups' => [$_helper->loadReflection($resource, $this->requestCache)->getConstant('READ')],
+                'groups' => [$_helper->loadReflection($resource, $this->memoize)->getConstant('READ')],
             ];
 
             $data = $this->serializer->serialize($entity, 'jsonld', $context);

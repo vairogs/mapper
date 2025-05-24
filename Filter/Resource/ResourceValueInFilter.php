@@ -56,12 +56,12 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         new ORMValueInFilter(
             $this->managerRegistry,
-            $this->requestCache,
+            $this->memoize,
             $this->logger,
             $this->properties,
             $this->nameConverter,
             $this->state,
-        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
+        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->memoize), $operation, $context);
     }
 
     public function getDescription(
@@ -111,7 +111,7 @@ class ResourceValueInFilter extends AbstractResourceFilter
 
         foreach ($this->getProperties($resourceClass) as $type => $items) {
             if ($this->state->isMappedType($type, MappingType::RESOURCE)) {
-                $rp = $_helper->getReadProperty($type, $this->requestCache);
+                $rp = $_helper->getReadProperty($type, $this->memoize);
 
                 foreach ($items as $item => $unused) {
                     $filtered[] = [$name = $item . '.' . $rp => $name];
@@ -124,13 +124,13 @@ class ResourceValueInFilter extends AbstractResourceFilter
                 foreach ($items as $item => $property) {
                     /** @var ReflectionProperty $property */
                     if (!$property->getType()?->isBuiltin()) {
-                        $rev = $_helper->mapFromAttribute($resourceClass, $this->requestCache);
-                        $pp = $_helper->loadReflection($rev, $this->requestCache)->getProperty($item);
+                        $rev = $_helper->mapFromAttribute($resourceClass, $this->memoize);
+                        $pp = $_helper->loadReflection($rev, $this->memoize)->getProperty($item);
                         $orm = array_merge_recursive($pp->getAttributes(ManyToMany::class), $pp->getAttributes(OneToMany::class));
 
                         if ([] !== $orm && $this->state->isMapped($targetEntity = $orm[0]->getArguments()['targetEntity'])) {
-                            $colRef = $_helper->loadReflection($_helper->mapFromAttribute($targetEntity, $this->requestCache), $this->requestCache);
-                            $rp = $_helper->getReadProperty($colRef->getName(), $this->requestCache);
+                            $colRef = $_helper->loadReflection($_helper->mapFromAttribute($targetEntity, $this->memoize), $this->memoize);
+                            $rp = $_helper->getReadProperty($colRef->getName(), $this->memoize);
                             $filtered[] = [$name = $item . '.' . $rp => $name];
                         }
 

@@ -29,10 +29,10 @@ use ReflectionProperty;
 use ReflectionUnionType;
 use Symfony\Component\Serializer\NameConverter\NameConverterInterface;
 use Vairogs\Bundle\ApiPlatform\Constants\MappingType;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\State\State;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function array_key_exists;
 use function array_map;
@@ -46,7 +46,7 @@ class ORMValueInFilter extends AbstractFilter
 {
     public function __construct(
         ManagerRegistry $managerRegistry,
-        private readonly RequestCache $requestCache,
+        private readonly MemoizeCache $memoize,
         ?LoggerInterface $logger = null,
         ?array $properties = null,
         ?NameConverterInterface $nameConverter = null,
@@ -100,7 +100,7 @@ class ORMValueInFilter extends AbstractFilter
 
             $values = explode(',', $filterValue);
 
-            $reflection = $_helper->loadReflection($resourceClass, $this->requestCache);
+            $reflection = $_helper->loadReflection($resourceClass, $this->memoize);
 
             if ('m' !== $alias) {
                 $exp = explode('.', $property, 2);
@@ -111,15 +111,15 @@ class ORMValueInFilter extends AbstractFilter
                 }
 
                 if ($this->state->isMappedType($typeAlias->getName(), MappingType::ENTITY)) {
-                    $reflection = $_helper->loadReflection($typeAlias->getName(), $this->requestCache);
+                    $reflection = $_helper->loadReflection($typeAlias->getName(), $this->memoize);
                 }
 
                 if (Collection::class === $typeAlias->getName()) {
                     $orm = array_merge_recursive($prop->getAttributes(ManyToMany::class), $prop->getAttributes(OneToMany::class));
 
                     if ([] !== $orm) {
-                        $colRef = $_helper->loadReflection($_helper->mapFromAttribute($orm[0]->getArguments()['targetEntity'], $this->requestCache), $this->requestCache);
-                        $reflection = $_helper->loadReflection($_helper->mapFromAttribute($colRef->getName(), $this->requestCache), $this->requestCache);
+                        $colRef = $_helper->loadReflection($_helper->mapFromAttribute($orm[0]->getArguments()['targetEntity'], $this->memoize), $this->memoize);
+                        $reflection = $_helper->loadReflection($_helper->mapFromAttribute($colRef->getName(), $this->memoize), $this->memoize);
                     }
                 }
             }
@@ -127,7 +127,7 @@ class ORMValueInFilter extends AbstractFilter
             $propertyType = $reflection->getProperty($field)->getType();
 
             if (!$propertyType?->isBuiltin()) {
-                $refType = $_helper->loadReflection($propertyType->getName(), $this->requestCache);
+                $refType = $_helper->loadReflection($propertyType->getName(), $this->memoize);
 
                 if ($refType->implementsInterface(BackedEnum::class)) {
                     $instance = $reflection->newInstance();

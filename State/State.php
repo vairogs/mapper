@@ -15,6 +15,7 @@ use ApiPlatform\Metadata\ApiResource;
 use ApiPlatform\Metadata\Exception\ResourceClassNotFoundException;
 use ApiPlatform\Metadata\Operation;
 use ApiPlatform\Symfony\Security\Exception\AccessDeniedException;
+use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\EntityManagerInterface;
 use Doctrine\ORM\Exception\ORMException;
@@ -36,7 +37,6 @@ use Symfony\Component\TypeInfo\Type\ObjectType;
 use Symfony\Component\Uid\Uuid;
 use Vairogs\Bundle\ApiPlatform\Constants\MappingType;
 use Vairogs\Bundle\ApiPlatform\Functions;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_GetReadProperty;
 use Vairogs\Bundle\Traits\_LoadReflection;
 use Vairogs\Component\Mapper\Attribute\Mapped;
@@ -50,12 +50,15 @@ use Vairogs\Component\Mapper\Exception\MappingException;
 use Vairogs\Component\Mapper\Traits\_GetIgnore;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
 use Vairogs\Functions\Iteration;
+use Vairogs\Functions\Memoize\MemoizeCache;
 
 use function array_key_exists;
+use function array_merge;
 use function class_exists;
 use function count;
 use function get_object_vars;
 use function in_array;
+use function is_a;
 use function is_object;
 use function is_string;
 use function method_exists;
@@ -73,7 +76,7 @@ class State
         protected readonly AuthorizationCheckerInterface $security,
         #[Lazy]
         protected readonly EntityManagerInterface $entityManager,
-        protected readonly RequestCache $requestCache,
+        protected readonly MemoizeCache $memoize,
         protected readonly Functions $functions,
     ) {
         $this->accessor = PropertyAccess::createPropertyAccessor();
@@ -97,7 +100,7 @@ class State
             };
         }
 
-        $count = ($repository = $this->entityManager->getRepository($class))->count([$property = $_helper->getReadProperty($_helper->mapFromAttribute($class, $this->requestCache), $this->requestCache) => $id]);
+        $count = ($repository = $this->entityManager->getRepository($class))->count([$property = $_helper->getReadProperty($_helper->mapFromAttribute($class, $this->memoize), $this->memoize) => $id]);
 
         if (0 === $count) {
             return null;
@@ -144,7 +147,7 @@ class State
         string $sourceClass,
         string $targetClass,
     ): ?string {
-        return $this->requestCache->memoize(MapperContext::RELATION_NAME, $sourceClass . '/' . $propertyName, function () use ($sourceClass, $targetClass, $propertyName) {
+        return $this->memoize->memoize(MapperContext::RELATION_NAME, $sourceClass . '/' . $propertyName, function () use ($sourceClass, $targetClass, $propertyName) {
             $associations = $this->entityManager->getClassMetadata($sourceClass)->getAssociationMappings();
 
             $matches = [];
@@ -178,7 +181,7 @@ class State
             };
         }
 
-        $reflection = $_helper->loadReflection($object, $this->requestCache);
+        $reflection = $_helper->loadReflection($object, $this->memoize);
 
         if ([] !== ($ea = $reflection->getAttributes(SimpleApiResource::class))) {
             return $ea[0];
@@ -204,11 +207,13 @@ class State
             };
         }
 
-        if (!$this->entityManager->getUnitOfWork()->isInIdentityMap($object) && !in_array($property, ['id', $_helper->getReadProperty($_helper->mapFromAttribute($_helper->loadReflection($object, $this->requestCache)->getName(), $this->requestCache), $this->requestCache)], true)) {
+        if (!$this->entityManager->getUnitOfWork()->isInIdentityMap($object) && !in_array($property, ['id', $_helper->getReadProperty($_helper->mapFromAttribute($_helper->loadReflection($object, $this->memoize)->getName(), $this->memoize), $this->memoize)], true)) {
             $object = $this->getActualObject($object);
         }
 
         if ($this->entityManager->getUnitOfWork()->isInIdentityMap($object)) {
+            $this->initializePropertyIfNeeded($object, $property);
+
             return $this->accessor->getValue($object, $property);
         }
 
@@ -221,6 +226,36 @@ class State
             ->getSingleColumnResult()[0];
 
         return $this->parseIfUuid($result);
+    }
+
+    public function initializePropertyIfNeeded(
+        object $object,
+        string $property,
+    ): void {
+        static $_helper = null;
+
+        if (null === $_helper) {
+            $_helper = new class {
+                use _LoadReflection;
+            };
+        }
+
+        $reflection = $_helper->loadReflection($object, $this->memoize);
+
+        if (!$reflection->hasProperty($property)) {
+            throw new LogicException("Property '$property' does not exist on " . $reflection->getName());
+        }
+
+        $refProp = $reflection->getProperty($property);
+        $refProp->setAccessible(true);
+
+        if (!$refProp->isInitialized($object)) {
+            $type = $refProp->getType();
+
+            if ($type && is_a((string) $type, Collection::class, true)) {
+                $refProp->setValue($object, new ArrayCollection());
+            }
+        }
     }
 
     /**
@@ -237,7 +272,7 @@ class State
             };
         }
 
-        return [] !== $_helper->loadReflection($object, $this->requestCache)->getAttributes(ORM\Entity::class);
+        return [] !== $_helper->loadReflection($object, $this->memoize)->getAttributes(ORM\Entity::class);
     }
 
     /**
@@ -254,7 +289,7 @@ class State
             };
         }
 
-        return null !== $_helper->mapFromAttribute($object, $this->requestCache);
+        return null !== $_helper->mapFromAttribute($object, $this->memoize);
     }
 
     /**
@@ -277,7 +312,7 @@ class State
         }
 
         try {
-            $reflection = $_helper->loadReflection($objectOrClass, $this->requestCache);
+            $reflection = $_helper->loadReflection($objectOrClass, $this->memoize);
         } catch (ReflectionException) {
             return false;
         }
@@ -348,9 +383,9 @@ class State
             return null;
         }
 
-        $reflection = $_helper->loadReflection($object, $this->requestCache);
+        $reflection = $_helper->loadReflection($object, $this->memoize);
 
-        if (999 !== ($found = $this->requestCache->value(MapperContext::ALREADY_NORMALIZED, $reflection->getName(), 999, (string) $object->getId()))) {
+        if (999 !== ($found = $this->memoize->value(MapperContext::ALREADY_NORMALIZED, $reflection->getName(), 999, (string) $object->getId()))) {
             return $found;
         }
 
@@ -364,7 +399,7 @@ class State
             return null; // TODO: config to throw or return | ^ ? <
         }
 
-        $_helper->addElementIfNotExists($context[MapperContext::MAPPER_PARENTS->value], $targetResourceClass = $_helper->mapFromAttribute($object, $this->requestCache), $targetResourceClass);
+        $_helper->addElementIfNotExists($context[MapperContext::MAPPER_PARENTS->value], $targetResourceClass = $_helper->mapFromAttribute($object, $this->memoize), $targetResourceClass);
 
         $operation = $context['operation'] ?? $context['root_operation'] ?? ($context['request'] ?? null)?->attributes->get('_api_operation');
 
@@ -374,13 +409,13 @@ class State
 
         $output = new $targetResourceClass();
 
-        $targetResourceReflection = $_helper->loadReflection($output, $this->requestCache);
+        $targetResourceReflection = $_helper->loadReflection($output, $this->memoize);
 
         if ([] === ($this->allowedFields[$targetResourceClass] ?? [])) {
             $this->allowedFields[$targetResourceClass] = [];
 
             if (!$this->security->isGranted($operation, $targetResourceClass)) {
-                if ($targetResourceClass !== $context['resource_class']) {
+                if (null !== ($context['resource_class'] ?? null) && $targetResourceClass !== $context['resource_class']) {
                     $decision = null;
 
                     if ([] !== $attributes = $targetResourceReflection->getAttributes(OnDeny::class)) {
@@ -424,9 +459,9 @@ class State
 
                 if (Collection::class === $propertyType) {
                     $this->setResourceProperty($output, $propertyName, [], context: $context);
-                    $targetClass = $_helper->mapFromAttribute($propertyValue->getTypeClass()->getName(), $this->requestCache);
+                    $targetClass = $_helper->mapFromAttribute($propertyValue->getTypeClass()->getName(), $this->memoize);
                 } else {
-                    $targetClass = $_helper->mapFromAttribute($propertyType, $this->requestCache);
+                    $targetClass = $_helper->mapFromAttribute($propertyType, $this->memoize);
                 }
 
                 if (null === $targetClass) {
@@ -439,9 +474,15 @@ class State
 
                 $open = false;
                 $att = $this->getApiResource($targetClass)->newInstance();
-                $ref = $_helper->loadReflection($att, $this->requestCache)->getProperty('normalizationContext')->getValue($att);
+                $ref = $_helper->loadReflection($att, $this->memoize)->getProperty('normalizationContext')->getValue($att);
 
-                if ($_helper->haveCommonElements($context['groups'], $ref['groups'])) {
+                $context['groups'] = array_merge(
+                    $context['groups'] ?? [],
+                    $context['request']?->query->all('groups') ?? [],
+                    $context['request']?->attributes->get('_api_query_parameters')['groups'] ?? [],
+                );
+
+                if ([] !== ($ref['groups'] ?? []) && $_helper->haveCommonElements($context['groups'], $ref['groups'])) {
                     $open = true;
                 }
 
@@ -453,9 +494,9 @@ class State
                     }
 
                     if (!$open) {
-                        $rp = $_helper->getReadProperty($resource, $this->requestCache);
+                        $rp = $_helper->getReadProperty($resource, $this->memoize);
 
-                        $relationName = $this->findRelationName($propertyName, $propertyValue->getTypeClass()->getName(), $_helper->loadReflection($object, $this->requestCache)->getName());
+//                        $relationName = $this->findRelationName($propertyName, $propertyValue->getTypeClass()->getName(), $_helper->loadReflection($object, $this->memoize)->getName());
                         $qb = $this->entityManager->getRepository($propertyValue->getTypeClass()->getName())->createQueryBuilder('e')->select(sprintf('e.%s', $rp));
 
                         //                        if (null === $relationName) {
@@ -497,7 +538,7 @@ class State
 
                 if (!$open) {
                     $instance = clone $resource;
-                    $rp = $_helper->getReadProperty($resource, $this->requestCache);
+                    $rp = $_helper->getReadProperty($resource, $this->memoize);
                     $instance->{$rp} = $this->getValue($propertyValue, $rp);
                     $this->setResourceProperty($output, $propertyName, $instance, context: $context);
                 } else {
@@ -511,7 +552,7 @@ class State
             $this->setResourceProperty($output, $propertyName, $propertyValue, context: $context);
         }
 
-        $this->requestCache->memoize(MapperContext::ALREADY_NORMALIZED, $reflection->getName(), static fn () => $output, false, (string) $object->getId());
+        $this->memoize->memoize(MapperContext::ALREADY_NORMALIZED, $reflection->getName(), static fn () => $output, false, (string) $object->getId());
 
         return $output;
     }
@@ -519,7 +560,7 @@ class State
     protected function getActualObject(
         object $entity,
     ): object {
-        return $this->requestCache->memoize(MapperContext::ACTUAL_OBJECT, $entity::class, function () use ($entity) {
+        return $this->memoize->memoize(MapperContext::ACTUAL_OBJECT, $entity::class, function () use ($entity) {
             if ($entity instanceof Proxy) {
                 $this->entityManager->getUnitOfWork()->initializeObject($entity);
 
@@ -554,7 +595,7 @@ class State
             };
         }
 
-        $class = $_helper->mapFromAttribute($operation->getClass(), $this->requestCache);
+        $class = $_helper->mapFromAttribute($operation->getClass(), $this->memoize);
 
         if (null === $class) {
             throw new MappingException(sprintf('Resource class %s does not have a %s attribute', $operation->getClass(), Mapped::class));
@@ -570,7 +611,7 @@ class State
         object $object,
         string $propertyName,
     ): ?string {
-        return $this->requestCache->memoize(MapperContext::GET_READ_PROP, $propertyName, fn () => $this->processRelationProperty($object, $propertyName, true));
+        return $this->memoize->memoize(MapperContext::GET_READ_PROP, $propertyName, fn () => $this->processRelationProperty($object, $propertyName, true));
     }
 
     /**
@@ -660,7 +701,7 @@ class State
         $granted = true;
 
         if (null !== ($reflection = $this->getRelationPropertyClass($resource, $propertyName))) {
-            $ref = $_helper->loadReflection($resource, $this->requestCache);
+            $ref = $_helper->loadReflection($resource, $this->memoize);
 
             $operation = $context['operation'] ?? $context['root_operation'] ?? ($context['request'] ?? null)?->attributes->get('_api_operation');
 
@@ -675,8 +716,8 @@ class State
             }
         }
 
-        if ([] !== $this->allowedFields[$resource::class] && !in_array($_helper->getReadProperty($resource, $this->requestCache), $this->allowedFields[$resource::class] ?? [], true)) {
-            $this->allowedFields[$resource::class][] = $_helper->getReadProperty($resource, $this->requestCache);
+        if ([] !== $this->allowedFields[$resource::class] && !in_array($_helper->getReadProperty($resource, $this->memoize), $this->allowedFields[$resource::class] ?? [], true)) {
+            $this->allowedFields[$resource::class][] = $_helper->getReadProperty($resource, $this->memoize);
         }
 
         if (

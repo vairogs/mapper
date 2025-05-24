@@ -67,7 +67,7 @@ class ResourceDateFilter extends AbstractResourceFilter implements DateFilterInt
             $this->logger,
             $this->properties,
             $this->nameConverter,
-        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->requestCache), $operation, $context);
+        )->apply($queryBuilder, $queryNameGenerator, $_helper->mapFromAttribute($resourceClass, $this->memoize), $operation, $context);
     }
 
     public function getDescription(

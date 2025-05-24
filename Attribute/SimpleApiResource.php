@@ -23,6 +23,7 @@ use ApiPlatform\Metadata\Patch;
 use ApiPlatform\Metadata\Post;
 use ApiPlatform\Metadata\Put;
 use ApiPlatform\OpenApi\Model\Operation;
+use ApiPlatform\Serializer\Filter\GroupFilter;
 use ApiPlatform\State\OptionsInterface;
 use Attribute;
 use ReflectionException;
@@ -31,7 +32,6 @@ use Symfony\Bundle\FrameworkBundle\Console\Application;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\Finder\Finder;
 use Symfony\Component\HttpKernel\KernelInterface;
-use Vairogs\Bundle\Service\RequestCache;
 use Vairogs\Bundle\Traits\_GetClassFromFile;
 use Vairogs\Bundle\Traits\_GetReadProperty;
 use Vairogs\Bundle\Traits\_LoadReflection;
@@ -39,6 +39,7 @@ use Vairogs\Component\Mapper\Constants\MapperContext;
 use Vairogs\Component\Mapper\State\Processor;
 use Vairogs\Component\Mapper\State\Provider;
 use Vairogs\Component\Mapper\Traits\_MapFromAttribute;
+use Vairogs\Functions\Memoize\MemoizeCache;
 use Vairogs\Functions\Text;
 
 use function array_key_exists;
@@ -58,7 +59,7 @@ class SimpleApiResource extends ApiResource
         ?string $uriTemplate = null,
         ?string $shortName = null,
         ?string $description = null,
-        array|string|null $types = null,
+        string|array|null $types = null,
         $operations = null,
         array|string|null $formats = null,
         array|string|null $inputFormats = null,
@@ -85,7 +86,7 @@ class SimpleApiResource extends ApiResource
         ?array $denormalizationContext = null,
         ?bool $collectDenormalizationErrors = null,
         ?array $hydraContext = null,
-        Operation|bool|null $openapi = null,
+        bool|Operation|null $openapi = null,
         ?array $validationContext = null,
         ?array $filters = null,
         ?bool $elasticsearch = null,
@@ -107,11 +108,11 @@ class SimpleApiResource extends ApiResource
         ?int $paginationMaximumItemsPerPage = null,
         ?bool $paginationPartial = null,
         ?string $paginationType = null,
-        Stringable|string|null $security = null,
+        string|Stringable|null $security = null,
         ?string $securityMessage = null,
-        Stringable|string|null $securityPostDenormalize = null,
+        string|Stringable|null $securityPostDenormalize = null,
         ?string $securityPostDenormalizeMessage = null,
-        Stringable|string|null $securityPostValidation = null,
+        string|Stringable|null $securityPostValidation = null,
         ?string $securityPostValidationMessage = null,
         ?bool $compositeIdentifier = null,
         ?array $exceptionToStatus = null,
@@ -125,11 +126,13 @@ class SimpleApiResource extends ApiResource
         ?string $policy = null,
         array|string|null $middleware = null,
         array|Parameters|null $parameters = null,
+        ?bool $strictQueryParameterValidation = null,
+        ?bool $hideHydraOperation = null,
         array $extraProperties = [],
         array $simplify = [],
     ) {
         static $_helper = null;
-        static $requestCache = null;
+        static $memoize = null;
 
         if (null === $_helper) {
             $_helper = new class {
@@ -141,26 +144,26 @@ class SimpleApiResource extends ApiResource
             };
         }
 
-        if (null === $requestCache) {
+        if (null === $memoize) {
             $app = $GLOBALS['app'];
 
-            $requestCache = match (true) {
-                $app instanceof KernelInterface => $app->getContainer()->get(RequestCache::class),
-                $app instanceof Application => $app->getKernel()->getContainer()->get(RequestCache::class),
+            $memoize = match (true) {
+                $app instanceof KernelInterface => $app->getContainer()->get(MemoizeCache::class),
+                $app instanceof Application => $app->getKernel()->getContainer()->get(MemoizeCache::class),
                 default => null,
             };
 
-            $requestCache ??= new RequestCache();
+            $memoize ??= new MemoizeCache();
         }
 
-        $callerClass = $requestCache->memoize(MapperContext::CALLER_CLASS, $file = debug_backtrace(limit: 1)[0]['file'], static fn () => $_helper->getClassFromFile($file, $requestCache));
+        $callerClass = $memoize->memoize(MapperContext::CALLER_CLASS, $file = debug_backtrace(limit: 1)[0]['file'], static fn () => $_helper->getClassFromFile($file, $memoize));
         $attributes = null;
 
         try {
-            $self = $_helper->loadReflection(objectOrClass: $callerClass, requestCache: $requestCache);
+            $self = $_helper->loadReflection(objectOrClass: $callerClass, memoize: $memoize);
 
             $attributes = $self->getAttributes(name: self::class)[0]->getArguments();
-            $current = $_helper->loadReflection(objectOrClass: __CLASS__, requestCache: $requestCache)->getMethod(name: __FUNCTION__);
+            $current = $_helper->loadReflection(objectOrClass: __CLASS__, memoize: $memoize)->getMethod(name: __FUNCTION__);
             $i = $a = 0;
             $args = func_get_args();
 
@@ -171,7 +174,7 @@ class SimpleApiResource extends ApiResource
                 $a++;
             }
 
-            $readProperty = $_helper->getReadProperty($self->getName(), $requestCache);
+            $readProperty = $_helper->getReadProperty($self->getName(), $memoize);
 
             $uriVariables = null;
 
@@ -181,16 +184,16 @@ class SimpleApiResource extends ApiResource
                 ];
             }
 
-            $files = $requestCache->memoize(MapperContext::RESOURCE_FILES, 'key', static function () use ($_helper, $requestCache) {
+            $files = $memoize->memoize(MapperContext::RESOURCE_FILES, 'key', static function () use ($_helper, $memoize) {
                 $finder = new Finder();
                 $finder->files()->in(__DIR__ . '/../Filter/Resource/')->name('*.php');
                 $files = [];
 
                 foreach ($finder as $file) {
-                    $className = $requestCache->memoize(MapperContext::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath(), $requestCache));
+                    $className = $memoize->memoize(MapperContext::CALLER_CLASS, $file->getRealPath(), static fn () => $_helper->getClassFromFile($file->getRealPath(), $memoize));
 
                     if ($className && class_exists($className)) {
-                        $reflection = $_helper->loadReflection($className, requestCache: $requestCache);
+                        $reflection = $_helper->loadReflection($className, memoize: $memoize);
 
                         if ($reflection->implementsInterface(FilterInterface::class)) {
                             $files[] = $reflection->getName();
@@ -201,9 +204,11 @@ class SimpleApiResource extends ApiResource
                 return $files;
             });
 
-            $filters = array_unique(array_merge($filters ?? [], $files));
+            $filters = array_merge($filters ?? [], $files);
+            $filters[] = GroupFilter::class;
+            $filters = array_unique($filters);
 
-            $newShortName = $_helper->loadReflection($_helper->mapFromAttribute($callerClass, $requestCache, true), $requestCache)->getShortName();
+            $newShortName = $_helper->loadReflection($_helper->mapFromAttribute($callerClass, $memoize, true), $memoize)->getShortName();
 
             $prefix = $_helper->snakeCaseFromCamelCase($newShortName);
             $get = new Get(
@@ -249,11 +254,12 @@ class SimpleApiResource extends ApiResource
                 'denormalizationContext' => ['groups' => [$prefix . ':write', ], ],
                 'normalizationContext' => ['groups' => [$prefix . ':read', ], ],
                 'operations' => array_values($operations),
-                'order' => ['createdAt' => OrderFilterInterface::DIRECTION_DESC, ],
+                'order' => ['id' => OrderFilterInterface::DIRECTION_DESC, ],
                 'shortName' => $newShortName,
                 'provider' => Provider::class,
                 'processor' => Processor::class,
                 'filters' => $filters,
+                'output' => $callerClass,
             ];
 
             foreach ($defaults as $dKey => $dValue) {
@@ -267,7 +273,7 @@ class SimpleApiResource extends ApiResource
                     }
 
                     foreach ($existing as $op) {
-                        $opAttribute = $_helper->loadReflection($op, $requestCache);
+                        $opAttribute = $_helper->loadReflection($op, $memoize);
 
                         if (null === $opAttribute->newInstance()->getName()) {
                             unset($operations[$op::class]);
